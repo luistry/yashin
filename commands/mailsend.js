@@ -48,7 +48,7 @@ module.exports = {
                 description: mailDescription,
                 Readed: false, // Mark as unread
                 rewards: {
-                   shines: 5
+                   shines: 10
                 }
             };
 

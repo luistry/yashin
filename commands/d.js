@@ -2,7 +2,7 @@ const { EmbedBuilder, AttachmentBuilder, ReactionCollector, Client, ActionRowBui
 const Canvas = require('canvas');
 const { AnimeCharacter, fetchInventory, addCardToInventory, fetchLastDrop, updateLastDrop, fetchLastGrab, updateLastGrab ,consumeItems,updateDailyBuffs } = require('./database/database');
 const fetch = require('node-fetch');
-const frameImageUrl = 'https://frame-yashin.b-cdn.net/Frame_Default_Yashin.png';
+const frameImageUrl = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
 
 async function fetchImage(url) {
     // Check if URL is valid and starts with 'http://' or 'https://'
@@ -48,11 +48,13 @@ const COOLDOWN_DURATION_GRAB = 10 * 60 * 1000;  // 10 minutes
 function getRandomCharacterIds() {
     const ids = new Set();
 
-    
+    // Generate one ID between 15000 and 15408
+    const randomIdInRange = Math.floor(Math.random() * (15408 - 15000 + 1)) + 15000; // ID in range
+    ids.add(randomIdInRange);
 
     // Continue adding random IDs until we have 3 total
     while (ids.size < 3) {
-        const randomId = Math.floor(Math.random() * 15407) + 1;
+        const randomId = Math.floor(Math.random() * 15408) + 1; // Random ID between 1 and 15408
         ids.add(randomId);
     }
 
@@ -357,7 +359,7 @@ async function createCardCanvas(characters, userId) {
 
     let frameImage;
     try {
-        frameImage = await loadFrameImage('https://frame-yashin.b-cdn.net/Frame_Default_Yashin.png', maxRetries);
+        frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png', maxRetries);
     } catch (error) {
         console.error('Error loading frame image:', error);
         return null; // Exit if frame image cannot be loaded
@@ -480,7 +482,7 @@ async function handleButtonInteraction(collector, inventory, userId, updatedChar
                 cardGrabbed.set(characterId, i.user.id);
                 
                 // Give priority to the original user for the first 4 seconds
-                if (Date.now() - collector.startTime < 8000) {
+                if (Date.now() - collector.startTime < 15000) {
                     priorityMap.set(characterId, userId); // Set priority for the original user
                 } else if (!isPriorityUser) {
                     await message.channel.send(`${i.user}, you cannot grab this card because <@${priorityMap.get(characterId)}> has priority.`);

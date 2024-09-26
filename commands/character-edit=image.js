@@ -1,5 +1,6 @@
 const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const { editAnimeCharacterImage, AnimeCharacter } = require('./database/database');
+const AWS = require('aws-sdk');
 const axios = require('axios');
 
 // Authorized user IDs
@@ -15,10 +16,16 @@ const authorizedUserIds = [
 ];
 const notificationChannelId = '1284269392330494005';
 
-// BunnyCDN configuration
-const BUNNYCDN_HOSTNAME = 'https://yashin-images.b-cdn.net';
-const BUNNYCDN_STORAGE_ZONE = 'images-cards'; // Updated storage zone
-const BUNNYCDN_ACCESS_KEY = '785d7519-57df-405b-9e580f8444ac-7eed-49e4'; // Replace with your actual API key
+// Configuración de Digital Ocean Spaces
+const spacesEndpoint = new AWS.Endpoint('https://nyc3.digitaloceanspaces.com');
+const s3 = new AWS.S3({
+    endpoint: spacesEndpoint,
+    accessKeyId: 'DO00NMRCRGM8X7MRBAAY',
+    secretAccessKey: '0cvxIoWPHGCE94G0UUWw5xe6UXUDe2o903N7AKBLsTg',
+    region: 'nyc3' // Asegúrate de que esta región sea correcta
+});
+
+const SPACE_NAME = 'yashin'; // El nombre de tu espacio en Digital Ocean
 
 module.exports = {
     name: 'character-edit=image',
@@ -52,7 +59,7 @@ module.exports = {
             }
 
             if (characters.length > 1) {
-                // Handle multiple characters if necessary (e.g., by sending a list)
+                // Maneja múltiples personajes si es necesario
             } else {
                 const character = characters[0];
                 await handleCharacterEdit(character, new_img_url, message, notificationChannelId);
@@ -70,9 +77,9 @@ async function handleCharacterEdit(character, new_img_url, message, notification
         .setColor('#FFA500')
         .setTitle('Character Image Edit Preview')
         .setDescription(`**Name**: ${character.name}\n**Series**: ${character.series}`)
-        .setImage(character.img_url) // Current image
+        .setImage(character.img_url) // Imagen actual
         .addFields({ name: '➔', value: 'New Image', inline: true })
-        .setThumbnail(new_img_url) // New image
+        .setThumbnail(new_img_url) // Nueva imagen
         .setTimestamp();
 
     const checkoutButton = new ButtonBuilder()
@@ -96,11 +103,11 @@ async function handleCharacterEdit(character, new_img_url, message, notification
     collector.on('collect', async (interaction) => {
         if (interaction.customId === 'checkout') {
             try {
-                // Generate filename based on character name and series
+                // Generar nombre de archivo con el nombre y la serie del personaje
                 const filename = `${character.name.replace(/\s+/g, '_')}-${character.series.replace(/\s+/g, '_')}.jpg`;
 
-                const uploadedUrl = await uploadImageToBunnyCDN(new_img_url, filename);
-                await editAnimeCharacterImage(character.name, character.series, uploadedUrl); // Update with the uploaded URL
+                const uploadedUrl = await uploadImageToDigitalOcean(new_img_url, filename);
+                await editAnimeCharacterImage(character.name, character.series, uploadedUrl); // Actualizar con la URL subida
 
                 const confirmationEmbed = new EmbedBuilder()
                     .setColor('#00FF00')
@@ -131,44 +138,41 @@ async function handleCharacterEdit(character, new_img_url, message, notification
     });
 }
 
-async function uploadImageToBunnyCDN(imageUrl, filename) {
+async function uploadImageToDigitalOcean(imageUrl, filename) {
     try {
-        // Fetch the image
+        // Obtener la imagen de la URL proporcionada
         const response = await axios({
             method: 'get',
             url: imageUrl,
-            responseType: 'arraybuffer' // Get the image as an array buffer
+            responseType: 'arraybuffer'
         });
 
-        // Upload the image to BunnyCDN
-        const uploadResponse = await axios({
-            method: 'PUT',
-            url: `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${filename}`, // Correct upload URL
-            headers: {
-                'AccessKey': BUNNYCDN_ACCESS_KEY, // Replace with your actual API key
-                'Content-Type': 'application/octet-stream'
-            },
-            data: response.data // The image data to upload
-        });
+        // Preparar los parámetros de subida
+        const uploadParams = {
+            Bucket: SPACE_NAME,
+            Key: filename,
+            Body: response.data,
+            ACL: 'public-read', // Hace que el archivo sea accesible públicamente
+            ContentType: 'image/jpeg' // Asegurarse de que el tipo MIME es correcto
+        };
 
-        // Check if the upload was successful
-        if (uploadResponse.status === 201) {
-            return `${BUNNYCDN_HOSTNAME}/${filename}`; // Return the uploaded URL
-        } else {
-            throw new Error(`Failed to upload image to BunnyCDN. Status: ${uploadResponse.status}`);
-        }
+        // Subir la imagen a Digital Ocean Spaces
+        const data = await s3.upload(uploadParams).promise();
+
+        // Retornar la URL completa del archivo subido
+        return `https://yashin.nyc3.cdn.digitaloceanspaces.com/${filename}`;
     } catch (error) {
-        console.error('Error uploading image to BunnyCDN:', error);
+        console.error('Error uploading image to Digital Ocean:', error);
         throw new Error('Image upload failed.');
     }
 }
 
-// Updated function to validate URLs
+// Función para validar URLs
 function isValidUrl(urlString) {
     try {
         const url = new URL(urlString);
-        return url.protocol.startsWith('http'); // Accept any URL using HTTP or HTTPS
+        return url.protocol.startsWith('http');
     } catch (_) {
-        return false;  
+        return false;
     }
 }

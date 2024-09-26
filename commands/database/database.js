@@ -804,14 +804,14 @@ const updateCardsWithCharacterIdForAllUsers = async () => {
       );
     }
 
-    console.log("Series e img_url actualizadas correctamente para todos los inventarios relevantes.");
+    console.log("Series e img_url updated correctly in all inventorys.");
   } catch (error) {
-    console.error("Error al actualizar series e img_url para los inventarios:", error);
+    console.error("error trying to update series e img_url in cards", error);
   }
 };
 
-// Invocar la función para actualizar las cartas en todos los inventarios válidos
-updateCardsWithCharacterIdForAllUsers();
+//Update every card in the user collection and change the image and series name based in the id
+//updateCardsWithCharacterIdForAllUsers();
 
 // Invocar la función para actualizar las cartas en todos los inventarios válidos
 

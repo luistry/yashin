@@ -39,7 +39,7 @@ module.exports = {
 
             // Function to create the card canvas
             async function createCardCanvas(character) {
-                const frameImageUrl = 'https://frame-yashin.b-cdn.net/Frame_Default_Yashin.png';
+                const frameImageUrl = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
                 const cardWidth = 350;
                 const cardHeight = 550;
 

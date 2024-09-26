@@ -4,7 +4,7 @@ const Canvas = require('canvas');
 const { createCanvas, loadImage } = require('canvas');
 const fetch = require('node-fetch');
 
-const frameImageUrl = 'https://frame-yashin.b-cdn.net/Frame_Default_Yashin.png';
+const frameImageUrl = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
 
 async function fetchImage(url) {
     if (!/^https?:\/\//i.test(url)) {
