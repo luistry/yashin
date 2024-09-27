@@ -5,18 +5,16 @@ module.exports = {
     name: 'collection',
     description: 'Show the cards in the collection, optionally of another user.',
     async run(message) {
-        // Check for mentioned user or use the provided ID; fallback to message author
         const mentionedUser = message.mentions.users.first();
-        const providedId = message.content.split(' ')[1]; // Extract ID from the command if given
+        const providedId = message.content.split(' ')[1];
         const userId = mentionedUser ? mentionedUser.id : providedId || message.author.id;
 
-        // Get the correct display name (mentioned user, ID, or author's name)
-        const displayName = mentionedUser ? mentionedUser.username 
-            : providedId && await message.client.users.fetch(providedId).then(user => user.username).catch(() => null)
+        const displayName = mentionedUser 
+            ? mentionedUser.username 
+            : providedId && await message.client.users.fetch(providedId).then(user => user.username).catch(() => null) 
             || message.author.username;
 
         try {
-            // Fetch the user's inventory
             const inventory = await fetchInventory(userId);
             let cards = inventory.cards || [];
 
@@ -101,23 +99,22 @@ module.exports = {
 
                         if (i.customId === 'first') {
                             currentPage = 0;
-                            await sendPage(currentPage);
-                        } else if (i.customId === 'previous') {
-                            if (currentPage > 0) {
-                                currentPage--;
-                                await sendPage(currentPage);
-                            }
-                        } else if (i.customId === 'next') {
-                            if (currentPage < Math.ceil(cards.length / itemsPerPage) - 1) {
-                                currentPage++;
-                                await sendPage(currentPage);
-                            }
+                        } else if (i.customId === 'previous' && currentPage > 0) {
+                            currentPage--;
+                        } else if (i.customId === 'next' && currentPage < Math.ceil(cards.length / itemsPerPage) - 1) {
+                            currentPage++;
                         } else if (i.customId === 'last') {
                             currentPage = Math.ceil(cards.length / itemsPerPage) - 1;
-                            await sendPage(currentPage);
                         }
+
+                        await sendPage(currentPage);
                     } catch (error) {
-                        console.error('Error handling button interaction:', error);
+                        // Maneja el error de interacción desconocida
+                        if (error.code === 10062) {
+                            console.warn('Ignoring unknown interaction error');
+                        } else {
+                            console.error('Error handling button interaction:', error);
+                        }
                     }
                 });
             };
