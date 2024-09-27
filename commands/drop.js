@@ -457,8 +457,8 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
 
 
 let inventory;  // Declare inventory in a higher scope
-module.exports = {
-    name: 'drop',
+module.exports = { 
+    name: 'd',
     description: 'Drop a card every 20 minutes.',
     run: async (message) => {
         const user = message.author;
@@ -593,7 +593,7 @@ module.exports = {
             if (priorityData && priorityData.userId === userId && currentTime - priorityData.timestamp < 6000) {
                 if (!cardGrabbed.has(selectedCharacter._id)) {
                     cardGrabbed.set(selectedCharacter._id, userId);
-                    await addCardToInventory(userId, {
+                    await addCardToInventory(reactingUser.id, {
                         _id: selectedCharacter._id,
                         name: selectedCharacter.name,
                         series: selectedCharacter.series,
@@ -602,7 +602,7 @@ module.exports = {
                         code: selectedCharacter.code,
                         __v: selectedCharacter.__v,
                         dropped_on: new Date(),
-                        grabbed_by: userId,
+                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta
                         channel_id: message.channel.id,
                         guild_id: message.guild.id
                     });
@@ -628,7 +628,7 @@ module.exports = {
                         code: selectedCharacter.code,
                         __v: selectedCharacter.__v,
                         dropped_on: new Date(),
-                        grabbed_by: reactingUser.id,
+                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta
                         channel_id: message.channel.id,
                         guild_id: message.guild.id
                     });
