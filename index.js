@@ -1,3 +1,24 @@
+// Manejo de errores globales
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+    // Puedes ignorar ciertos errores
+    if (reason.code === 10062) {
+        console.warn('Ignoring unknown interaction error');
+        return;
+    }
+    // Maneja otros errores críticos
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Ignora errores de interacción desconocida
+    if (error.code === 10062) {
+        console.warn('Ignoring unknown interaction error');
+        return;
+    }
+});
+
+// Aquí comienza el resto de tu código
 const { Client, Events } = require("discord.js");
 const mongoose = require('mongoose');
 const { createCanvas, loadImage } = require('canvas');
@@ -81,39 +102,51 @@ const globalMiddleware = async (message, next) => {
 
 // Manejo de mensajes para comandos
 client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot || !message.content.toLowerCase().startsWith(prefix)) return;
+    try {
+        if (message.author.bot || !message.content.toLowerCase().startsWith(prefix)) return;
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+        const args = message.content.slice(prefix.length).trim().split(/ +/);
+        const commandName = args.shift().toLowerCase();
 
-    // Agrega el middleware antes de procesar cualquier comando
-    globalMiddleware(message, () => {
-        // Añadir el comando a la cola
-        commandQueue.push({ message, args, commandName });
+        // Agrega el middleware antes de procesar cualquier comando
+        globalMiddleware(message, () => {
+            // Añadir el comando a la cola
+            commandQueue.push({ message, args, commandName });
 
-        // Iniciar procesamiento de la cola
-        processQueue();
-    });
+            // Iniciar procesamiento de la cola
+            processQueue();
+        });
+
+    } catch (error) {
+        console.error('Error handling message:', error);
+        message.reply('An error occurred while processing your message.');
+    }
 });
 
 // Comando para activar/desactivar el modo de mantenimiento
 client.on(Events.MessageCreate, async (message) => {
-    if (message.author.id !== allowedUserId) return;
+    try {
+        if (message.author.id !== allowedUserId) return;
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+        const args = message.content.slice(prefix.length).trim().split(/ +/);
+        const commandName = args.shift().toLowerCase();
 
-    if (commandName === 'maintenance') {
-        if (args[0] === 'active') {
-            maintenanceMode = true;
-            await message.channel.send('Maintenance mode is now **active**. Only authorized users can execute commands.');
-        } else if (args[0] === 'inactive') {
-            maintenanceMode = false;
-            await message.channel.send('Maintenance mode is now **inactive**. Everyone can use commands again.');
-        } else {
-            await message.channel.send('Please specify either `active` or `inactive`.');
+        if (commandName === 'maintenance') {
+            if (args[0] === 'active') {
+                maintenanceMode = true;
+                await message.channel.send('Maintenance mode is now **active**. Only authorized users can execute commands.');
+            } else if (args[0] === 'inactive') {
+                maintenanceMode = false;
+                await message.channel.send('Maintenance mode is now **inactive**. Everyone can use commands again.');
+            } else {
+                await message.channel.send('Please specify either `active` or `inactive`.');
+            }
         }
+    } catch (error) {
+        console.error('Error handling maintenance command:', error);
+        message.reply('An error occurred while trying to toggle maintenance mode.');
     }
 });
+
 
 client.login("MTI3MjMwMTk4NTc4OTY0MDg1Nw.Gb2FwH.XS4XcHUkKddYTvRNuXcjQElcgicGepf2lXayao")
