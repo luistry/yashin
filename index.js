@@ -18,12 +18,7 @@ const mongoURI = 'mongodb+srv://Yashin:sheismylovemuch@Yashin.ronvl.mongodb.net/
 
 const connectDB = async () => {
     try {
-        await mongoose.connect(mongoURI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 30000,
-            socketTimeoutMS: 45000,
-        });
+        await mongoose.connect(mongoURI);
         console.log('MongoDB connected...');
     } catch (err) {
         console.error('MongoDB connection error:', err);

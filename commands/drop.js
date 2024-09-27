@@ -1,6 +1,6 @@
 const { EmbedBuilder, AttachmentBuilder, ReactionCollector, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Canvas = require('canvas');
-const { AnimeCharacter, fetchInventory, addCardToInventory, fetchLastDrop, updateLastDrop, fetchLastGrab, updateLastGrab ,consumeItems } = require('./database/database');
+const { AnimeCharacter, fetchInventory, addCardToInventory, fetchLastDrop, updateLastDrop, fetchLastGrab, updateLastGrab ,consumeItems,updateDailyBuffs } = require('./database/database');
 const fetch = require('node-fetch');
 const frameImageUrl = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
 
@@ -60,7 +60,6 @@ function getRandomCharacterIds() {
 
     return Array.from(ids);
 }
-
 
 // Fetches a valid character from the database or generates a new one if needed
 const getValidCharacter = async () => {
@@ -454,76 +453,10 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
 }
 
 // Handle button interactions
-async function handleButtonInteraction(collector, inventory, userId, updatedCharacters, message) {
-    const cardGrabbed = new Map();
-    const priorityMap = new Map();
 
-    collector.on('collect', async i => {
-        if (i.customId.startsWith('select_')) {
-            const [_, index, characterId] = i.customId.split('_');
-            const selectedIndex = parseInt(index, 10) - 1;
-            const selectedCharacter = updatedCharacters[selectedIndex];
-
-            const grabCooldown = await handleGrabCooldown(userId);
-
-            if (grabCooldown) {
-                if (inventory.extra_grab > 0) {
-                    await consumeItems(userId, ['extra_grab']);
-                    await updateLastGrab(userId);
-                    await message.channel.send(`${i.user}, cooldown active. Extra grab used! Remaining extra grabs: ${inventory.extra_grab - 1}`);
-                } else {
-                    await message.channel.send(`${i.user}, you are on cooldown. Please wait ${grabCooldown}.`);
-                    return;
-                }
-            }
-
-            const isPriorityUser = priorityMap.get(characterId) === userId;
-
-            if (!cardGrabbed.has(characterId)) {
-                cardGrabbed.set(characterId, i.user.id);
-                
-                // Give priority to the original user for the first 4 seconds
-                if (Date.now() - collector.startTime < 15000) {
-                    priorityMap.set(characterId, userId); // Set priority for the original user
-                } else if (!isPriorityUser) {
-                    await message.channel.send(`${i.user}, you cannot grab this card because <@${priorityMap.get(characterId)}> has priority.`);
-                    return;
-                }
-
-                if (!inventory.selected_card) {
-                    await addCardToInventory(userId, {
-                        _id: selectedCharacter._id,
-                        name: selectedCharacter.name,
-                        series: selectedCharacter.series,
-                        img_url: selectedCharacter.img_url,
-                        rarity: selectedCharacter.rarity,
-                        code: selectedCharacter.code,
-                        __v: selectedCharacter.__v,
-                        dropped_on: new Date(),
-                        grabbed_by: userId,
-                        channel_id: message.channel.id,
-                        guild_id: message.guild.id
-                    });
-
-                    await message.channel.send(`${i.user}, you grabbed the card ${selectedCharacter.code} from ${selectedCharacter.series}, the character: ${selectedCharacter.name}! Rarity: ${selectedCharacter.rarity}`);
-                } else {
-                    await message.channel.send(`${i.user}, you already have this card!`);
-                }
-            } else {
-                await message.channel.send(`${i.user}, you already grabbed this card!`);
-            }
-        }
-    });
-
-    // Set a timeout to allow the fastest reacter to grab after 4 seconds
-    setTimeout(() => {
-        priorityMap.clear(); // Clear priority after 4 seconds
-    }, 15000);
-}
 
 
 let inventory;  // Declare inventory in a higher scope
-
 module.exports = {
     name: 'drop',
     description: 'Drop a card every 20 minutes.',
@@ -531,13 +464,11 @@ module.exports = {
         const user = message.author;
         const channel = message.channel;
 
-        // Validate the user and channel
         if (!user || !channel) {
             console.error('Message author or channel is missing.');
             return;
         }
 
-        // Fetch the user's inventory to get the userId
         const userInventory = await fetchInventory(user.id);
         if (!userInventory || !userInventory._id) {
             console.error('Inventory fetch failed or no inventory found for the user.');
@@ -545,12 +476,11 @@ module.exports = {
         }
 
         const userId = userInventory._id;
+        await updateDailyBuffs(userId);
 
-        // Check if the user is on cooldown for dropping cards
         const cooldownActive = await handleDropCooldown(userId, message);
         if (cooldownActive) return;
 
-        // Function to get a valid character or generate a new one if not found
         const getValidCharacter = async () => {
             let character = null;
             while (!character) {
@@ -563,14 +493,12 @@ module.exports = {
             return character;
         };
 
-        // Fetch characters and update their stats
         const updatedCharacters = [];
         for (let i = 0; i < 5; i++) {
             const character = await getValidCharacter();
             const rarity = getRandomRarity();
             const updatedStats = await updateCharacterStats(character._id, rarity);
 
-            // Push updated character details to the array
             if (updatedStats) {
                 updatedCharacters.push({
                     _id: character._id,
@@ -586,17 +514,14 @@ module.exports = {
             }
         }
 
-        // Create a canvas with the characters
         const canvas = await createCardCanvas(updatedCharacters, userId);
         const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'cards.png' });
 
-        // Fetch user's buffs to determine how many characters to show
         const userBuffs = await fetchInventory(userId);
         const emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'];
         const isBuffActive = userBuffs.Buffs.some(buff => buff.name === 'Divinity Absolute' && buff.active);
         const numberOfCharactersToShow = isBuffActive ? 4 : 3;
 
-        // Construct the drop list message
         const dropList = updatedCharacters
             .slice(0, numberOfCharactersToShow)
             .map((char, index) => 
@@ -604,72 +529,71 @@ module.exports = {
             )
             .join('\n');
 
-        // Send the content as a message
         const msg = await message.channel.send({
             content: `<@${userId}> drop\n${dropList}`,
             files: [attachment]
         });
 
-        // Add reactions for card selection
         for (let i = 0; i < numberOfCharactersToShow; i++) {
             await msg.react(emojis[i]);
         }
 
-        // Filter for reaction collector
-        const filter = (reaction, user) => {
-            return emojis.includes(reaction.emoji.name) && !user.bot;
-        };
+        const filter = (reaction, user) => emojis.includes(reaction.emoji.name) && !user.bot;
 
-        // Create reaction collector
-        const collector = msg.createReactionCollector({
-            filter,
-            time: 60000 // 1 minute
-        });
+        const cardGrabbed = new Map(); 
+        const priorityMap = new Map(); 
+        const collector = msg.createReactionCollector({ filter, time: 60000 });
 
-        // Handle the end of the collector
-        collector.on('end', async collected => {
-            if (collected.size === 0) {
-                try {
-                    await msg.edit({ content: `${msg.content}\n\n**The Drop has Expired.**` });
-                    await msg.reactions.removeAll(); // Clear reactions after expiry
-                } catch (error) {
-                    console.error('Error handling drop expiration:', error); // Log the error for debugging
-                }
-            }
-        });
+        // Crear un delay para congelar las reacciones de otros usuarios
+        let dropperPriority = true; 
+        setTimeout(() => {
+            dropperPriority = false; // Después de 4 segundos, se elimina la prioridad
+        }, 6000); // Tiempo de prioridad para el dropper (4 segundos)
 
-        const cardGrabbed = new Map(); // Track grabbed cards
-        const priorityMap = new Map(); // To track priority and time of grabs
-
-        collector.on('collect', async (reaction, user) => {
+        collector.on('collect', async (reaction, reactingUser) => {
             const index = emojis.indexOf(reaction.emoji.name);
-            if (index === -1) return; // Invalid reaction
+            if (index === -1) return;
 
             const selectedCharacter = updatedCharacters[index];
-            if (!selectedCharacter) return; // Character not found
+            if (!selectedCharacter) return;
 
-            // Check cooldown for the grabbing user
-            const grabCooldown = await handleGrabCooldown(user.id);
+            const grabCooldown = await handleGrabCooldown(reactingUser.id);
             if (grabCooldown) {
-                const inventory = await fetchInventory(user.id);
+                const inventory = await fetchInventory(reactingUser.id);
                 if (inventory.extra_grab > 0) {
-                    await consumeItems(user.id, ['extra_grab']);
-                    await updateLastGrab(user.id);
-                    await message.channel.send({ content: `Cooldown active. Extra grab used! Remaining extra grabs: ${inventory.extra_grab - 1}`, ephemeral: true });
+                    await consumeItems(reactingUser.id, ['extra_grab']);
+                    await message.channel.send({
+                        content: `Cooldown active. Extra grab used! Remaining extra grabs: ${inventory.extra_grab - 1}`,
+                        ephemeral: true
+                    });
                 } else {
-                    await message.channel.send({ content: `${user}, you are on cooldown. Please wait ${grabCooldown}.`, ephemeral: true });
+                    await message.channel.send({
+                        content: `${reactingUser}, you are on cooldown. Please wait ${grabCooldown}.`,
+                        ephemeral: true
+                    });
                     return;
                 }
             }
 
-            // Handle priority for card grabbing
-            if (!cardGrabbed.has(selectedCharacter._id)) {
-                priorityMap.set(selectedCharacter._id, { userId: user.id, timestamp: Date.now() });
-                cardGrabbed.set(selectedCharacter._id, user.id);
+            const priority = priorityMap.get(selectedCharacter._id);
+            const currentTime = Date.now();
+            if (dropperPriority && reactingUser.id !== userId) {
+                // Si hay prioridad activa y no es el dropper, bloquear la reacción
+                await message.channel.send({
+                    content: `${reactingUser}, **the dropper has priority for a few more seconds!** Please wait.`,
+                    ephemeral: true
+                });
+                return;
+            } else if (!priority) {
+                priorityMap.set(selectedCharacter._id, { userId, timestamp: currentTime });
+            }
 
-                const inventory = await fetchInventory(user.id);
-                if (!inventory.selected_card) {
-                    await addCardToInventory(user.id, {
+            const priorityData = priorityMap.get(selectedCharacter._id);
+
+            if (priorityData && priorityData.userId === userId && currentTime - priorityData.timestamp < 6000) {
+                if (!cardGrabbed.has(selectedCharacter._id)) {
+                    cardGrabbed.set(selectedCharacter._id, userId);
+                    await addCardToInventory(userId, {
                         _id: selectedCharacter._id,
                         name: selectedCharacter.name,
                         series: selectedCharacter.series,
@@ -677,37 +601,56 @@ module.exports = {
                         rarity: selectedCharacter.rarity,
                         code: selectedCharacter.code,
                         __v: selectedCharacter.__v,
-                        dropped_on: new Date(), // Record the drop time
-                        grabbed_by: user.id, // Who grabbed the card
-                        channel_id: message.channel.id, // Channel ID
-                        guild_id: message.guild.id // Guild ID
+                        dropped_on: new Date(),
+                        grabbed_by: userId,
+                        channel_id: message.channel.id,
+                        guild_id: message.guild.id
                     });
 
-                    // Notify about card grabbing
-                    await message.channel.send(`${user}, you grabbed the card ${selectedCharacter.code} from ${selectedCharacter.series}, the character: ${selectedCharacter.name}! Rarity: ${selectedCharacter.rarity}`);
+                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` ·  ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
                 } else {
-                    await message.reply(`${user}, you already have this card!`);
+                    await message.reply(`${reactingUser}, the card has already been grabbed!`);
                 }
+            } else if (priorityData && priorityData.userId !== reactingUser.id) {
+                await message.channel.send({
+                    content: `You can't grab this card because <@${priorityData.userId}> has priority.`,
+                    ephemeral: true
+                });
             } else {
-                const priority = priorityMap.get(selectedCharacter._id);
-                if (priority.userId !== user.id) {
-                    await message.channel.send({ content: `You can't grab this card because <@${priority.userId}> has priority. They have fought off your attempt.`, ephemeral: true });
+                if (!cardGrabbed.has(selectedCharacter._id)) {
+                    cardGrabbed.set(selectedCharacter._id, reactingUser.id);
+                    await addCardToInventory(reactingUser.id, {
+                        _id: selectedCharacter._id,
+                        name: selectedCharacter.name,
+                        series: selectedCharacter.series,
+                        img_url: selectedCharacter.img_url,
+                        rarity: selectedCharacter.rarity,
+                        code: selectedCharacter.code,
+                        __v: selectedCharacter.__v,
+                        dropped_on: new Date(),
+                        grabbed_by: reactingUser.id,
+                        channel_id: message.channel.id,
+                        guild_id: message.guild.id
+                    });
+
+                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` ·  ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
                 } else {
-                    await message.reply(`${user}, you already grabbed this card!`);
+                    await message.reply(`${reactingUser}, you already grabbed this card!`);
                 }
             }
         });
 
-        // Set a timeout to remove priority after 4 seconds
-        setTimeout(() => {
-            priorityMap.forEach((value, key) => {
-                if (Date.now() - value.timestamp > 15000) {
-                    priorityMap.delete(key); // Remove priority if more than 4 seconds have passed
+        collector.on('end', async collected => {
+            if (collected.size === 0) {
+                try {
+                    await msg.edit({ content: `${msg.content}\n\n**The Drop has Expired.**` });
+                    await msg.reactions.removeAll();
+                } catch (error) {
+                    console.error('Error handling drop expiration:', error);
                 }
-            });
-        }, 15000);
+            }
+        });
 
-        // Log the completion of the drop
         console.log(`Drop executed by ${user.username} in channel ${channel.id} with ${updatedCharacters.length} characters.`);
     }
 };

@@ -982,88 +982,13 @@ async function insertAnimeCharacters() {
 //
 
 
-const TOPGG_AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyNzIzMDE5ODU3ODk2NDA4NTciLCJib3QiOnRydWUsImlhdCI6MTcyNTQwNzkxN30.KSQ8Q7LpuhEsjoZg_MAdrIs07O9cg0omK_R-9Ga3HLo';
-
-// Función para realizar solicitudes a la API de Top.gg
-async function fetchTopGGData(endpoint, params = {}) {
-    const baseUrl = 'https://top.gg/api';
-    const url = `${baseUrl}${endpoint}`;
-
-    try {
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': TOPGG_AUTH_TOKEN,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Error: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error fetching data from Top.gg:', error);
-        throw error;
-    }
-}
 
 // Función para manejar el voto de un usuario
-async function handleVote(userId) {
-    try {
-        // Verificar si el usuario ha votado por el bot
-        const voteData = await fetchTopGGData(`/bots/1272301985789640857/check`, { userId });
 
-        if (voteData.voted !== 1) {
-            throw new Error('User has not voted');
-        }
-
-        // Usa la función existente fetchInventory para obtener la información del usuario
-        const user = await fetchInventory(userId);
-        console.log('Fetched Inventory:', user); // Imprime el resultado para depuración
-
-        if (!user) {
-            throw new Error('User not found');
-        }
-
-        // Determinar si es fin de semana (sábado o domingo)
-        const today = new Date();
-        const isWeekend = today.getDay() === 6 || today.getDay() === 0; // 6 es sábado, 0 es domingo
-
-        // Determinar la cantidad de shines
-        const baseShineAmount = isWeekend ? 2 : 1;
-        const totalShineAmount = baseShineAmount + 1; // Añadir un shine extra
-
-        // Calcular el nuevo total de shines
-        const currentShines = user.shines.reduce((total, value) => total + value, 0);
-        const newShineTotal = currentShines + totalShineAmount;
-
-        // Actualizar el usuario con el nuevo valor de shines
-        const updatedUser = await Inventory.findOneAndUpdate(
-            { user_id: userId },
-            {
-                $set: { 
-                    shines: [newShineTotal],
-                    last_daily: new Date() 
-                }
-            },
-            { new: true }
-        );
-
-        return updatedUser;
-    } catch (err) {
-        console.error('Error updating shines:', err);
-        throw err;
-    }
-}
 
 // Ejemplo de uso: Reemplaza 'USER_ID' con el ID del usuario que votó en tu lógica
-const userId = 'USER_ID'; // Asigna el ID del usuario que votó aquí
+ // Asigna el ID del usuario que votó aquí
 
-handleVote(userId)
-    .then(updatedUser => console.log('Updated User:', updatedUser))
-    .catch(error => console.error('Error:', error));
   //insertAnimeCharacters(); insertar personajes de anime 
 
 // Delay function to wait between API requests

@@ -14,14 +14,14 @@ module.exports = {
         }
 
         // Create the email content
-        const mailName = 'Inactivity of the bot';
+        const mailName = 'Anti Sniping System reworked';
         const mailDescription = `
-        Moshi moshi! Yashin here! We apologize for the inconveniences that occurred with the bot in the last 2 days.
-         We've been facing issues with the CDN and the bot's inactivity, 
+        Moshi moshi! Yashin here! We apologize for the inconveniences that occurred with the bot and the big maintenance today.
+         We've been having issues with the old system of anti sniping in the bot , 
         which have been challenging to resolve. 
             
             **Your Rewards:**
-            - 10 Shines ✨ 
+            - 5 Shines ✨ 
         `;
 
         // Fetch all user inventories
@@ -48,7 +48,7 @@ module.exports = {
                 description: mailDescription,
                 Readed: false, // Mark as unread
                 rewards: {
-                   shines: 10
+                   shines: 5
                 }
             };
 
