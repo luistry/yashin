@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { fetchInventory } = require('./database/database');
 
 module.exports = {
-    name: 'collection',
+    name: 'c',
     description: 'Show the cards in the collection, optionally of another user.',
     async run(message) {
         const mentionedUser = message.mentions.users.first();

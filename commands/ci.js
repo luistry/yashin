@@ -2,7 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const { fetchAllInventories } = require('./database/database');
 
 module.exports = {
-    name: 'cardinfo',
+    name: 'ci',
     description: 'Get information about a specific card by its code',
     async run(message, args) {
         if (args.length === 0) {

@@ -14,14 +14,18 @@ module.exports = {
         }
 
         // Create the email content
-        const mailName = 'Anti Sniping System reworked';
+        const mailName = '300 players';
         const mailDescription = `
-        Moshi moshi! Yashin here! We apologize for the inconveniences that occurred with the bot and the big maintenance today.
-         We've been having issues with the old system of anti sniping in the bot , 
-        which have been challenging to resolve. 
+      Moshi moshi! Yashin here!
+
+We're excited to announce that we are officially celebrating reaching 300 players! 🎉 Your support and enthusiasm have made this milestone possible, and we couldn't have done it without each and every one of you.
+
+We didn’t expect such a tremendous growth in our community, and it’s truly amazing to see so many of you enjoying the game together. To show our gratitude, we’ll be rolling out some special features and rewards soon, so stay tuned!
+
+Thank you for being part of this journey. Let’s keep growing and having fun together!
             
             **Your Rewards:**
-            - 5 Shines ✨ 
+            - 15 Shines ✨ 
         `;
 
         // Fetch all user inventories
@@ -48,7 +52,7 @@ module.exports = {
                 description: mailDescription,
                 Readed: false, // Mark as unread
                 rewards: {
-                   shines: 5
+                   shines: 15
                 }
             };
 
