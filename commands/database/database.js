@@ -33,6 +33,7 @@ const inventorySchema = new mongoose.Schema({
     FastHands: [],
     SpeedOfReaction: [],
     info: [],
+    wishlist_channel: String,
     referers: [],
     user_referer: [],
     Profile: [],
@@ -159,6 +160,7 @@ async function registerUser(userId, username) {
     FastHands: [],
     SpeedOfReaction: [],
             Buffs: [],
+            wishlist_channel: String,
             info: [],
             wishlist: [],          // Inicializa como un array vacío
             cards: [],
@@ -536,13 +538,30 @@ async function updateWishlist(userId, characterName, characterSeries, increment 
             return { success: false, message: 'Character not found.' };
         }
 
-        // Crear el objeto de wishlist
+        // Buscar el inventario del usuario
+        const userInventory = await Inventory.findById(userId);
+        if (!userInventory) {
+            return { success: false, message: 'User inventory not found.' };
+        }
+
+        // Establecer el límite de la wishlist (por defecto es 10)
+        const wishlistLimit = userInventory.limited || 10;
+
+        // Verificar la cantidad actual en la wishlist
+        const wishlistCount = userInventory.wishlist.length;
+
+        // Si se quiere incrementar y ya alcanzó el límite
+        if (increment && wishlistCount >= wishlistLimit) {
+            return { success: false, message: `Wishlist limit reached. You can only have ${wishlistLimit} items.` };
+        }
+
+        // Crear el objeto de la wishlist
         const wishlistItem = { name: character.name, series: character.series };
 
         // Actualizar la wishlist del usuario
         const update = increment
-            ? { $addToSet: { wishlist: wishlistItem } }
-            : { $pull: { wishlist: wishlistItem } };
+            ? { $addToSet: { wishlist: wishlistItem } }  // Añadir sin duplicados
+            : { $pull: { wishlist: wishlistItem } };     // Eliminar si está presente
 
         const result = await Inventory.findByIdAndUpdate(userId, update, { new: true });
 
@@ -556,6 +575,7 @@ async function updateWishlist(userId, characterName, characterSeries, increment 
     }
 }
 
+
 async function updateInventory(userId, updatedData) {
     try {
         return await Inventory.findByIdAndUpdate(
@@ -568,6 +588,7 @@ async function updateInventory(userId, updatedData) {
         throw error;
     }
 }
+
 
 // database/database.js
 
@@ -940,6 +961,54 @@ async function getDatabaseSnapshot() {
 }
 
 //
+async function fetchWishlist(characterName, dropChannelId) {
+    try {
+        // Fetch all user inventories
+        const inventories = await fetchAllInventories(); // Cambiado a fetchAllInventories
+
+        // Check if inventories is null or not an array
+        if (!Array.isArray(inventories)) {
+            console.error('Inventories is null or not an array:', inventories);
+            return []; // Return an empty array to avoid further errors
+        }
+
+        // Check if at least one inventory has a valid wishlist_channel
+        const hasValidChannel = inventories.some(inventory =>
+            typeof inventory.wishlist_channel === 'string' && 
+            inventory.wishlist_channel.length > 1
+        );
+
+        if (!hasValidChannel) {
+            console.log('No valid wishlist_channel found in any inventory.');
+            return []; // Return an empty array if no valid channel exists
+        }
+
+        // Filter inventories to find those containing the character in their wishlist and the correct wishlist channel
+        const matchedInventories = inventories.filter(inventory => 
+            inventory.wishlist_channel === dropChannelId && // Check that the channel matches
+            inventory.wishlist && inventory.wishlist.some(item => item.name.toLowerCase() === characterName.toLowerCase()) // Check if the character is in the wishlist
+        );
+
+        // Log to check matched inventories
+        console.log('Matched inventories:', matchedInventories);
+
+        return matchedInventories.map(inventory => ({
+            userId: inventory.user_id, // Cambiar a user_id
+            username: inventory.username, // Incluir el nombre de usuario para mención
+            wishlist_channel: inventory.wishlist_channel,
+            wishlist: inventory.wishlist // Optionally return the wishlist if needed
+        }));
+    } catch (error) {
+        console.error('Error fetching wishlists:', error);
+        throw error;
+    }
+}
+
+
+
+
+
+//
 
 async function insertAnimeCharacters() {
     try {
@@ -1004,5 +1073,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,fetchWishlist
 };

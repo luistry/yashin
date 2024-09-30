@@ -1,5 +1,6 @@
 const { EmbedBuilder, AttachmentBuilder, ReactionCollector, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Canvas = require('canvas');
+const {wishlistMention} = require('./utils/wishlistmention')
 const { AnimeCharacter, fetchInventory, addCardToInventory, fetchLastDrop, updateLastDrop, fetchLastGrab, updateLastGrab ,consumeItems,updateDailyBuffs } = require('./database/database');
 const fetch = require('node-fetch');
 const frameImageUrl = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
@@ -51,7 +52,6 @@ function getRandomCharacterIds() {
     // Generate one ID between 15000 and 15408
     const randomIdInRange = Math.floor(Math.random() * (15408 - 15000 + 1)) + 15000; // ID in range
     ids.add(randomIdInRange);
-
     // Continue adding random IDs until we have 3 total
     while (ids.size < 3) {
         const randomId = Math.floor(Math.random() * 15408) + 1; // Random ID between 1 and 15408
@@ -513,6 +513,10 @@ module.exports = {
                 });
             }
         }
+         // Array para almacenar las IDs a las que se hará ping
+//await wishlistMention(updatedCharacters, message.channel.id);
+
+    
 
         const canvas = await createCardCanvas(updatedCharacters, userId);
         const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'cards.png' });

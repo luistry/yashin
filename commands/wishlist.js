@@ -1,47 +1,85 @@
 const { EmbedBuilder } = require('discord.js');
-const { fetchInventory, AnimeCharacter } = require('./database/database'); // Ensure the path is correct
+const { fetchInventory, AnimeCharacter } = require('./database/database');
 
 module.exports = {
     name: 'wishlist',
-    description: 'Displays the list of characters in your wishlist.',
+    description: 'Displays the list of characters in your wishlist with pagination.',
     run: async (message) => {
         try {
             // Get the user's inventory
             const userInventory = await fetchInventory(message.author.id);
 
-            // Remove or comment out the updateWishlistCounts call
-            // await updateWishlistCounts(message.author.id);
-            // console.log('Wishlist counts updated successfully!');
-
+            // If the user has no wishlist or it's empty
             if (!userInventory || !userInventory.wishlist || userInventory.wishlist.length === 0) {
                 return message.channel.send('Your wishlist is empty.');
             }
 
-            // Build the embed description from the wishlist data
+            const wishlistLimit = userInventory.limited || 10; // Default to 10 if not set
+            const remainingSlots = wishlistLimit - userInventory.wishlist.length;
+            const itemsPerPage = 10;
+            let currentPage = 0;
+
+            // Fetch and format the wishlist items
             const wishlistItems = await Promise.all(userInventory.wishlist.map(async item => {
-                const { name, series } = item; // Destructuring to get name and series
-                
-                // Find the character in AnimeCharacter collection
+                const { name, series } = item;
                 const character = await AnimeCharacter.findOne({ name, series });
                 const wishlistCount = character ? character.wishlist : 'Not specified';
-
-                // Align the items using text formatting
                 return `❤️ ${wishlistCount} • ${name.padEnd(20, ' ')} - ${series.padEnd(15, ' ')}`;
             }));
 
-            const description = wishlistItems.join('\n'); // Join all items with new lines
+            // Helper function to generate the embed for a specific page
+            const generateEmbed = (page) => {
+                const start = page * itemsPerPage;
+                const end = start + itemsPerPage;
+                const currentItems = wishlistItems.slice(start, end);
 
-            // Check the text length to comply with Discord's limit
-            const embedDescription = description.length > 2048 ? description.slice(0, 2048) + '...' : description;
+                const description = currentItems.join('\n');
+                const embedDescription = description.length > 2048 ? description.slice(0, 2048) + '...' : description;
 
-            const embed = new EmbedBuilder()
-                .setColor('#0099ff')
-                .setTitle('Your Wishlist')
-                .setDescription(`\`\`\`${embedDescription}\`\`\``) // Use code block formatting for alignment
-                .setFooter({ text: 'List of characters in your wishlist', iconURL: message.author.displayAvatarURL() })
-                .setTimestamp();
+                return new EmbedBuilder()
+                    .setColor('#0099ff')
+                    .setTitle(`Your Wishlist (Page ${page + 1} of ${Math.ceil(wishlistItems.length / itemsPerPage)})`)
+                    .setDescription(`\`\`\`${embedDescription}\`\`\``)
+                    .setFooter({
+                        text: `Wishlist slots: ${userInventory.wishlist.length}/${wishlistLimit} (${remainingSlots} slots remaining)`,
+                        iconURL: message.author.displayAvatarURL(),
+                    })
+                    .setTimestamp();
+            };
 
-            await message.channel.send({ embeds: [embed] });
+            // Send the initial embed message
+            const embedMessage = await message.channel.send({ embeds: [generateEmbed(currentPage)] });
+
+            // React with pagination controls
+            await embedMessage.react('◀️');
+            await embedMessage.react('▶️');
+
+            // Create a filter to only allow the message author to control the reactions
+            const filter = (reaction, user) => ['◀️', '▶️'].includes(reaction.emoji.name) && user.id === message.author.id;
+
+            // Create a reaction collector to handle pagination
+            const collector = embedMessage.createReactionCollector({ filter, time: 60000 });
+
+            collector.on('collect', async (reaction) => {
+                if (reaction.emoji.name === '▶️') {
+                    if (currentPage < Math.ceil(wishlistItems.length / itemsPerPage) - 1) {
+                        currentPage++;
+                        await embedMessage.edit({ embeds: [generateEmbed(currentPage)] });
+                    }
+                } else if (reaction.emoji.name === '◀️') {
+                    if (currentPage > 0) {
+                        currentPage--;
+                        await embedMessage.edit({ embeds: [generateEmbed(currentPage)] });
+                    }
+                }
+
+                // Remove the user's reaction to avoid clutter
+                await reaction.users.remove(message.author.id);
+            });
+
+            collector.on('end', () => {
+                embedMessage.reactions.removeAll(); // Remove reactions when the collector ends
+            });
 
         } catch (error) {
             console.error('Error displaying wishlist:', error);

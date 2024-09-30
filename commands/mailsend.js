@@ -14,18 +14,16 @@ module.exports = {
         }
 
         // Create the email content
-        const mailName = '300 players';
+        const mailName = 'maintenance';
         const mailDescription = `
       Moshi moshi! Yashin here!
 
-We're excited to announce that we are officially celebrating reaching 300 players! 🎉 Your support and enthusiasm have made this milestone possible, and we couldn't have done it without each and every one of you.
-
-We didn’t expect such a tremendous growth in our community, and it’s truly amazing to see so many of you enjoying the game together. To show our gratitude, we’ll be rolling out some special features and rewards soon, so stay tuned!
-
-Thank you for being part of this journey. Let’s keep growing and having fun together!
+We also want to apologize for the extended maintenance over the past two days.
+ We’ve been working hard to improve the game and ensure a better experience for everyone. 
+Thank you for your patience and understanding during this time.
             
             **Your Rewards:**
-            - 15 Shines ✨ 
+            - 5 shines ✨ 
         `;
 
         // Fetch all user inventories
@@ -52,7 +50,7 @@ Thank you for being part of this journey. Let’s keep growing and having fun to
                 description: mailDescription,
                 Readed: false, // Mark as unread
                 rewards: {
-                   shines: 15
+                   shines: 5
                 }
             };
 

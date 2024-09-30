@@ -1,5 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { fetchInventory, updateInventory, Inventory, AnimeCharacter } = require('./database/database'); // Ensure the path is correct
+const { fetchInventory, updateInventory, AnimeCharacter } = require('./database/database'); // Ensure the path is correct
 
 module.exports = {
     name: 'wishlistremove',
@@ -21,12 +21,11 @@ module.exports = {
                     userInventory.wishlist.map(item => 
                         new StringSelectMenuOptionBuilder()
                             .setLabel(`${item.name} - ${item.series}`)
-                            .setValue(`${item.name}:${item.series}`) // Value format for identification
+                            .setValue(`${item.name}`) // Use the character name as the value
                     )
                 );
 
-            const row = new ActionRowBuilder()
-                .addComponents(selectMenu);
+            const row = new ActionRowBuilder().addComponents(selectMenu);
 
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
@@ -42,18 +41,14 @@ module.exports = {
             const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 });
 
             collector.on('collect', async i => {
-                const [name, series] = i.values[0].split(':');
-                const userInventory = await fetchInventory(message.author.id);
-
-                // Check if the character is in the user's wishlist
-                const characterIndex = userInventory.wishlist.findIndex(item => 
-                    item.name.trim().toLowerCase() === name.trim().toLowerCase() && 
-                    item.series.trim().toLowerCase() === series.trim().toLowerCase()
-                );
+                const selectedCharacterName = i.values[0]; // Get the selected character name
+                const characterIndex = userInventory.wishlist.findIndex(item => item.name === selectedCharacterName); // Check by name
 
                 if (characterIndex === -1) {
                     return i.reply({ content: 'Character not found in your wishlist.', ephemeral: true });
                 }
+
+                const selectedCharacter = userInventory.wishlist[characterIndex];
 
                 // Create confirmation buttons
                 const confirmButton = new ButtonBuilder()
@@ -66,12 +61,11 @@ module.exports = {
                     .setLabel('Cancel')
                     .setStyle(ButtonStyle.Secondary);
 
-                const actionRow = new ActionRowBuilder()
-                    .addComponents(confirmButton, cancelButton);
+                const actionRow = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
 
                 // Update the message with confirmation buttons
                 await i.update({
-                    content: `You have selected ${name} - ${series}. Do you want to remove it from your wishlist?`,
+                    content: `You have selected **${selectedCharacter.name} - ${selectedCharacter.series}**. Do you want to remove it from your wishlist?`,
                     components: [actionRow]
                 });
 
@@ -89,11 +83,11 @@ module.exports = {
 
                         // Update the wishlist count in the character database
                         await AnimeCharacter.updateOne(
-                            { name: name.trim(), series: series.trim() },
+                            { name: selectedCharacter.name }, // Use name for identification
                             { $inc: { wishlist: -1 } } // Decrement the wishlist count
                         );
 
-                        await b.update({ content: `Removed ${name} - ${series} from your wishlist.`, components: [] });
+                        await b.update({ content: `Removed **${selectedCharacter.name} - ${selectedCharacter.series}** from your wishlist.`, components: [] });
 
                         // Create an embed to show the updated wishlist
                         const updatedWishlist = userInventory.wishlist.map(item => `:heart: • ${item.name} - ${item.series}`).join('\n\n');
@@ -113,15 +107,16 @@ module.exports = {
                 buttonCollector.on('end', collected => {
                     // Disable the select menu and buttons after the collector ends
                     selectMenu.setDisabled(true);
-                    sentMessage.edit({ components: [new ActionRowBuilder().addComponents(selectMenu)] });
+                    confirmButton.setDisabled(true);
+                    cancelButton.setDisabled(true);
+                    sentMessage.edit({ components: [new ActionRowBuilder().addComponents(selectMenu)], content: 'Interaction ended.' });
                 });
-
             });
 
             collector.on('end', collected => {
                 // Disable the select menu after the collector ends
                 selectMenu.setDisabled(true);
-                sentMessage.edit({ components: [new ActionRowBuilder().addComponents(selectMenu)] });
+                sentMessage.edit({ components: [new ActionRowBuilder().addComponents(selectMenu)], content: 'Interaction ended.' });
             });
 
         } catch (error) {

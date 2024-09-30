@@ -1,5 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
-const { AnimeCharacter, fetchInventory, updateWishlist } = require('./database/database'); // Ensure paths are correct
+const { AnimeCharacter, fetchInventory, updateWishlist } = require('./database/database'); // Verifica las rutas
 
 module.exports = {
     name: 'wishlistadd',
@@ -11,7 +11,7 @@ module.exports = {
                 return message.channel.send('Please provide a character name to search.');
             }
 
-            // Search for characters by name and select only the fields name and series
+            // Buscar personajes por nombre y seleccionar solo los campos nombre y serie
             const characters = await AnimeCharacter.find(
                 { name: new RegExp(query, 'i') },
                 'name series'
@@ -33,10 +33,10 @@ module.exports = {
                 .setCustomId('select_character')
                 .setPlaceholder('Select a character')
                 .addOptions(
-                    characters.map((character, index) => 
+                    characters.map(character => 
                         new StringSelectMenuOptionBuilder()
                             .setLabel(`${character.name} - ${character.series}`)
-                            .setValue(`${index}`) // Use the index as value
+                            .setValue(`${character._id}`) // Usar _id del AnimeCharacter
                     )
                 );
 
@@ -48,49 +48,41 @@ module.exports = {
             const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 });
 
             collector.on('collect', async i => {
-                const selectedIndex = parseInt(i.values[0], 10); // Index of the selected character
-                console.log('Selected Character Index:', selectedIndex);
+                const selectedCharacterId = i.values[0]; // Obtener el _id del personaje seleccionado
 
                 try {
-                    const character = characters[selectedIndex]; // Get the selected character
-                    console.log('Fetched Character:', character);
-
+                    const character = await AnimeCharacter.findById(selectedCharacterId);
                     if (!character) {
                         return i.reply({ content: 'Character not found.', ephemeral: true });
                     }
 
-                    const selectedCharacterName = character.name; // Character's name
-                    const selectedCharacterSeries = character.series; // Character's series
-
                     const userInventory = await fetchInventory(message.author.id);
-                    console.log('User Inventory:', userInventory);
-
                     if (!userInventory) {
                         return i.reply({ content: 'You do not have an inventory.', ephemeral: true });
                     }
 
-                    const wishlist = userInventory.wishlist || [];
-                    if (wishlist.some(item => item.name === selectedCharacterName && item.series === selectedCharacterSeries)) {
-                        return i.reply({ content: `${selectedCharacterName} is already in your wishlist.`, ephemeral: true });
+                    // Verificar si el personaje ya está en la wishlist
+                    const isInWishlist = userInventory.wishlist.some(item => 
+                        item.name.toLowerCase() === character.name.toLowerCase() && 
+                        item.series.toLowerCase() === character.series.toLowerCase()
+                    );
+
+                    if (isInWishlist) {
+                        return i.reply({ content: 'This character is already in your wishlist.', ephemeral: true });
                     }
 
-                    // Update the wishlist in the user's inventory
-                    await updateWishlist(message.author.id, selectedCharacterName, selectedCharacterSeries); 
-
-                    // Increment the wishlist count for the selected character
-                    const characterToUpdate = await AnimeCharacter.findOne({ name: selectedCharacterName, series: selectedCharacterSeries });
-                    if (characterToUpdate) {
-                        const newCount = (parseInt(characterToUpdate.wishlist, 10) || 0) + 1;
-                        await AnimeCharacter.updateOne(
-                            { name: selectedCharacterName, series: selectedCharacterSeries },
-                            { $set: { wishlist: newCount } }
-                        );
+                    const wishlistResult = await updateWishlist(message.author.id, character.name, character.series);
+                    if (!wishlistResult.success) {
+                        return i.reply({ content: wishlistResult.message, ephemeral: true });
                     }
+
+                    // Aumentar el contador del personaje en AnimeCharacter
+                    await AnimeCharacter.findByIdAndUpdate(selectedCharacterId, { $inc: { wishlist: + 1 } }); // Asegúrate de que el campo se llame 'count' o el que uses
 
                     const detailEmbed = new EmbedBuilder()
                         .setColor('#0099ff')
-                        .setTitle(`${selectedCharacterName} added to wishlist`)
-                        .setDescription(`**Series:** ${selectedCharacterSeries}`)
+                        .setTitle(`${character.name} added to wishlist`)
+                        .setDescription(`**Series:** ${character.series}`)
                         .setFooter({ text: 'Character added to wishlist', iconURL: message.author.displayAvatarURL() })
                         .setTimestamp();
 
