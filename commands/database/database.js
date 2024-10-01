@@ -961,49 +961,49 @@ async function getDatabaseSnapshot() {
 }
 
 //
-async function fetchWishlist(characterName, dropChannelId) {
-    try {
+//async function fetchWishlist(characterName, dropChannelId) {
+   // try {
         // Fetch all user inventories
-        const inventories = await fetchAllInventories(); // Cambiado a fetchAllInventories
+       // const inventories = await fetchAllInventories(); // Cambiado a fetchAllInventories
 
         // Check if inventories is null or not an array
-        if (!Array.isArray(inventories)) {
-            console.error('Inventories is null or not an array:', inventories);
-            return []; // Return an empty array to avoid further errors
-        }
+      //  if (!Array.isArray(inventories)) {
+           // console.error('Inventories is null or not an array:', inventories);
+         //   return []; // Return an empty array to avoid further errors
+       // }
 
         // Check if at least one inventory has a valid wishlist_channel
-        const hasValidChannel = inventories.some(inventory =>
-            typeof inventory.wishlist_channel === 'string' && 
-            inventory.wishlist_channel.length > 1
-        );
+       // const hasValidChannel = inventories.some(inventory =>
+           // typeof inventory.wishlist_channel === 'string' && 
+         //   inventory.wishlist_channel.length > 1
+       // );
 
-        if (!hasValidChannel) {
-            console.log('No valid wishlist_channel found in any inventory.');
-            return []; // Return an empty array if no valid channel exists
-        }
+       // if (!hasValidChannel) {
+            //console.log('No valid wishlist_channel found in any inventory.');
+          //  return []; // Return an empty array if no valid channel exists
+        //}
 
         // Filter inventories to find those containing the character in their wishlist and the correct wishlist channel
-        const matchedInventories = inventories.filter(inventory => 
-            inventory.wishlist_channel === dropChannelId && // Check that the channel matches
-            inventory.wishlist && inventory.wishlist.some(item => item.name.toLowerCase() === characterName.toLowerCase()) // Check if the character is in the wishlist
-        );
+       // const matchedInventories = inventories.filter(inventory => 
+            //inventory.wishlist_channel === dropChannelId && // Check that the channel matches
+          //  inventory.wishlist && inventory.wishlist.some(item => item.name.toLowerCase() === characterName.toLowerCase()) // Check if the character is in the wishlist
+        //);
 
         // Log to check matched inventories
-        console.log('Matched inventories:', matchedInventories);
+       // console.log('Matched inventories:', matchedInventories);
 
-        return matchedInventories.map(inventory => ({
-            userId: inventory.user_id, // Cambiar a user_id
-            username: inventory.username, // Incluir el nombre de usuario para mención
-            wishlist_channel: inventory.wishlist_channel,
-            wishlist: inventory.wishlist // Optionally return the wishlist if needed
-        }));
-    } catch (error) {
-        console.error('Error fetching wishlists:', error);
-        throw error;
-    }
-}
-
+       // return matchedInventories.map(inventory => ({
+            //userId: inventory.user_id, // Cambiar a user_id
+          //  username: inventory.username, // Incluir el nombre de usuario para mención
+        //    wishlist_channel: inventory.wishlist_channel,
+      //      wishlist: inventory.wishlist // Optionally return the wishlist if needed
+    //    }));
+   // } catch (error) {
+    //    console.error('Error fetching wishlists:', error);
+  //      throw error;
+//    //}
+//}
+//
 
 
 
@@ -1073,5 +1073,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,fetchWishlist
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,
 };
