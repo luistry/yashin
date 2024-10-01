@@ -1,5 +1,5 @@
 const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
-const { addAnimeCharacter, getMaxCharacterId } = require('./database/database');
+const { addAnimeCharacter, AnimeCharacter } = require('./database/database');
 const AWS = require('aws-sdk');
 const axios = require('axios');
 
@@ -52,13 +52,8 @@ module.exports = {
                 return await message.channel.send('The provided image URL is invalid. Please provide a valid URL.');
             }
 
-            // Fetch the max character ID from the database
-            const maxCharacterId = await getMaxCharacterId();
-            const newCharacterId = maxCharacterId >= 15408 ? maxCharacterId + 1 : 15408;
-
-            if (newCharacterId > 154408) {
-                return await message.channel.send('Character ID limit reached. Cannot add more characters.');
-            }
+            // Fetch the next available character ID from the database
+            const newCharacterId = await getNextAvailableCharacterId();
 
             // Preview the character addition
             const previewEmbed = new EmbedBuilder()
@@ -165,5 +160,20 @@ function isValidUrl(urlString) {
         return url.protocol.startsWith('http');
     } catch (_) {
         return false;
+    }
+}
+
+// Function to get the next available character ID
+async function getNextAvailableCharacterId() {
+    let newId = 15409; // Start from the first valid ID
+    while (true) {
+        const existingCharacter = await AnimeCharacter.findOne({ _id: newId });
+        if (!existingCharacter) {
+            return newId; // Found an available ID
+        }
+        newId++;
+        if (newId > 154408) {
+            throw new Error('Character ID limit reached. Cannot add more characters.');
+        }
     }
 }

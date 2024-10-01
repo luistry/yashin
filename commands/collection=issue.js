@@ -101,7 +101,10 @@ module.exports = {
 
                 collector.on('collect', async i => {
                     try {
-                        await i.deferUpdate();
+                        // Check if the interaction is valid before proceeding
+                        if (!i.deferred && !i.replied) {
+                            await i.deferUpdate();
+                        }
 
                         if (i.customId === 'first') {
                             currentPage = 0;
