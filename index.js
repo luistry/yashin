@@ -1,24 +1,3 @@
-// Manejo de errores globales
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection:', reason);
-    // Puedes ignorar ciertos errores
-    if (reason.code === 10062) {
-        console.warn('Ignoring unknown interaction error');
-        return;
-    }
-    // Maneja otros errores críticos
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-    // Ignora errores de interacción desconocida
-    if (error.code === 10062) {
-        console.warn('Ignoring unknown interaction error');
-        return;
-    }
-});
-
-// Aquí comienza el resto de tu código
 const { Client, Events } = require("discord.js");
 const mongoose = require('mongoose');
 const { createCanvas, loadImage } = require('canvas');
@@ -61,6 +40,28 @@ client.once("ready", () => {
     // Establece el estado del bot
     client.user.setActivity(`Use ${prefix}help.`);
 });
+
+// Manejo de errores globales
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+    // Ignora ciertos errores
+    if (reason.code === 10062) {
+        console.warn('Ignoring unknown interaction error');
+        return;
+    }
+    // Maneja otros errores críticos
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Ignora errores de interacción desconocida
+    if (error.code === 10062) {
+        console.warn('Ignoring unknown interaction error');
+        return;
+    }
+});
+
+// Resto del código
 
 const processQueue = async () => {
     if (isProcessingQueue || commandQueue.length === 0) return;
@@ -139,7 +140,7 @@ client.on(Events.MessageCreate, async (message) => {
                 maintenanceMode = false;
                 await message.channel.send('Maintenance mode is now **inactive**. Everyone can use commands again.');
             } else {
-                await message.channel.send('Please specify either `active` or `inactive`.');
+                await message.channel.send('Please specify either active or inactive.');
             }
         }
     } catch (error) {
@@ -147,6 +148,29 @@ client.on(Events.MessageCreate, async (message) => {
         message.reply('An error occurred while trying to toggle maintenance mode.');
     }
 });
+
+// Manejo de interacciones (Ejemplo de botón)
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isButton()) return; // Solo maneja interacciones de botón
+
+    try {
+        // Aquí maneja la interacción del botón
+        await interaction.deferUpdate();
+        // Agrega lógica de respuesta aquí
+
+    } catch (error) {
+        // Manejo de errores de interacción
+        console.error('Error handling button interaction:', error);
+        if (error.code === 10062) {
+            console.warn('Ignoring unknown interaction error');
+        } else {
+            // Maneja otros errores
+            await interaction.reply({ content: 'An error occurred while handling the button interaction.', ephemeral: true });
+        }
+    }
+});
+
+// Aquí comienza el resto de tu código
 
 
 client.login("MTI3MjMwMTk4NTc4OTY0MDg1Nw.Gb2FwH.XS4XcHUkKddYTvRNuXcjQElcgicGepf2lXayao")
