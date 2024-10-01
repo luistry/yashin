@@ -86,7 +86,7 @@ async function addCardToInventory(userId, cardData) {
             { new: true, upsert: true } // 'upsert' para crear el documento si no existe
         );
 
-        console.log('Updated Inventory:', inventory);
+      
         return inventory;
     } catch (error) {
         console.error('Error updating inventory:', error);
