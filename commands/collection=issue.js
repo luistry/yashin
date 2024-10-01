@@ -100,12 +100,10 @@ module.exports = {
                 const collector = sentMessage.createMessageComponentCollector({ filter });
 
                 collector.on('collect', async i => {
-                    try {
-                        // Check if the interaction is valid before proceeding
-                        if (!i.deferred && !i.replied) {
-                            await i.deferUpdate();
-                        }
+                    // Acknowledge the interaction immediately
+                    await i.deferUpdate();
 
+                    try {
                         if (i.customId === 'first') {
                             currentPage = 0;
                             await sendPage(currentPage);
