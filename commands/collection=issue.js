@@ -124,7 +124,10 @@ module.exports = {
                             await sendPage(currentPage);
                         }
                     } catch (error) {
-                        console.error('Error handling button interaction:', error);
+                        // Ignore "unknown interaction" errors
+                        if (error.message !== 'Unknown interaction') {
+                            console.error('Error handling button interaction:', error);
+                        }
                     }
                 });
             };
