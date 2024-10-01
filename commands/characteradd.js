@@ -52,9 +52,6 @@ module.exports = {
                 return await message.channel.send('The provided image URL is invalid. Please provide a valid URL.');
             }
 
-            // Fetch the next available character ID from the database
-            const newCharacterId = await getNextAvailableCharacterId();
-
             // Preview the character addition
             const previewEmbed = new EmbedBuilder()
                 .setColor('#FFA500') // Orange for preview
@@ -91,7 +88,7 @@ module.exports = {
                         const uploadedUrl = await uploadImageToDigitalOcean(img_url, filename);
 
                         // Add the new character to the database
-                        await addAnimeCharacter(newCharacterId, name, series, uploadedUrl);
+                        await addAnimeCharacter(name, series, uploadedUrl);
 
                         // Confirm character addition
                         const confirmationEmbed = new EmbedBuilder()
@@ -160,20 +157,5 @@ function isValidUrl(urlString) {
         return url.protocol.startsWith('http');
     } catch (_) {
         return false;
-    }
-}
-
-// Function to get the next available character ID
-async function getNextAvailableCharacterId() {
-    let newId = 15409; // Start from the first valid ID
-    while (true) {
-        const existingCharacter = await AnimeCharacter.findOne({ _id: newId });
-        if (!existingCharacter) {
-            return newId; // Found an available ID
-        }
-        newId++;
-        if (newId > 154408) {
-            throw new Error('Character ID limit reached. Cannot add more characters.');
-        }
     }
 }
