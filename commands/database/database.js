@@ -312,7 +312,7 @@ async function addFrameToInventory(userId, frameName, quantity) {
                 },
                 { new: true }
             );
-
+//update
             console.log('Inventario actualizado correctamente.');
             return updateResult;
         } else {
