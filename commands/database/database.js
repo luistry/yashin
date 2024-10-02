@@ -836,32 +836,7 @@ const updateCardsWithCharacterIdForAllUsers = async () => {
 //Update every card in the user collection and change the image and series name based in the id
 //updateCardsWithCharacterIdForAllUsers();
 
-// Invocar la función para actualizar las cartas en todos los inventarios válidos
-
-
-
-
-
-//
-//
-
-async function fetchCharacterData(id) {
-    try {
-        const response = await axios.get(`https://api.jikan.moe/v4/characters/${id}/full`);
-        const character = response.data.data;
-
-        // Mapear los datos necesarios
-        return {
-            _id: character.mal_id,  // Asignar el ID de MyAnimeList como _id
-            name: character.name,
-            series: character.anime[0]?.anime?.title || 'Unknown', // Asignar el título del anime si está disponible
-            img_url: character.images.jpg.image_url // Asignar la URL de la imagen
-        };
-    } catch (err) {
-        console.error(`Error fetching data for character ID ${id}: ${err.message}`);
-        throw err; // Re-lanzar el error para manejarlo más arriba
-    }
-}
+// Invocar la función para actualizar las cartas en todos los inventario
 //
 const applyBuffToUser = async (userId, buffName) => {
     try {
@@ -1005,67 +980,7 @@ async function getDatabaseSnapshot() {
   //      throw error;
 //    //}
 //}
-//
 
-
-
-
-//
-
-async function insertAnimeCharacters() {
-    try {
-        const characters = [];
-        for (let i = 1; i <= 15000; i++) {
-            try {
-                console.log(`Fetching data for character ID ${i}...`);
-                // Verifica si el personaje ya está en la base de datos
-                const existingCharacter = await AnimeCharacter.findById(i);
-                if (existingCharacter) {
-                    console.log(`Character ID ${i} already exists in the database. Skipping.`);
-                    continue; // Saltar al siguiente ID si ya existe
-                }
-
-                const characterData = await fetchCharacterData(i);
-                console.log(`Fetched data for character ID ${i}:`, characterData);
-                characters.push(characterData);
-
-                await delay(2000); // Espera 2 segundos entre cada solicitud para evitar el límite de tasa
-            } catch (err) {
-                console.error(`Failed to fetch or insert character with ID ${i}:`, err.message);
-                if (err.response?.status === 429) {
-                    console.log(`Rate limit exceeded for character ID ${i}. Retrying in 2000ms...`);
-                    await delay(2000); // Espera adicional en caso de límite de tasa
-                }
-            }
-        }
-
-        if (characters.length > 0) {
-            console.log('Inserting characters into database...');
-            await AnimeCharacter.insertMany(characters, { ordered: false });
-            console.log('Anime characters inserted successfully.');
-        } else {
-            console.log('No characters were inserted due to API errors or existing entries.');
-        }
-    } catch (err) {
-        console.error('Error inserting anime characters:', err);
-    }
-}
-//
-
-
-
-// Función para manejar el voto de un usuario
-
-
-// Ejemplo de uso: Reemplaza 'USER_ID' con el ID del usuario que votó en tu lógica
- // Asigna el ID del usuario que votó aquí
-
-  //insertAnimeCharacters(); insertar personajes de anime 
-
-// Delay function to wait between API requests
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 // Exportación de las funciones y modelos
 module.exports = { 
@@ -1075,5 +990,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,
+    AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,
 };

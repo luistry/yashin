@@ -3,29 +3,25 @@ const { updateInventory, fetchInventory } = require('./database/database');
 
 module.exports = {
     name: 'multitrade',
-    description: 'Trade multiple resources like shines, gold, stellar dust, and more with another player.',
+    description: 'Trade multiple resources with another player.',
     run: async (message, args) => {
         try {
             const targetUser = message.mentions.users.first();
-            if (!targetUser) {
-                return message.channel.send('Please mention a user to trade with.');
-            }
+            if (!targetUser) return message.channel.send('Please mention a user to trade with.');
 
-            // Fetch both inventories
+            // Fetch inventories
             const [authorInventory, targetInventory] = await Promise.all([
                 fetchInventory(message.author.id),
                 fetchInventory(targetUser.id),
             ]);
 
             const tradeData = initializeTradeData(message.author.id, targetUser.id);
-
-            const tradeRequestEmbed = precreateTradeRequestEmbed(message.author.username, targetUser.username);
+            const tradeRequestEmbed = createTradeRequestEmbed(message.author.username, targetUser.username);
             const actionRow = createInitialActionRow();
 
             const sentMessage = await message.channel.send({ embeds: [tradeRequestEmbed], components: [actionRow] });
             const collector = createInitialCollector(sentMessage, targetUser.id, message.author.id);
 
-            // Handle trade acceptance or cancellation
             handleInitialCollector(collector, message, sentMessage, tradeData, targetUser, authorInventory, targetInventory);
 
         } catch (error) {
@@ -36,60 +32,37 @@ module.exports = {
 };
 
 // Function to create the initial trade request embed
-function precreateTradeRequestEmbed(authorUsername, targetUsername) {
+function createTradeRequestEmbed(authorUsername, targetUsername) {
     return new EmbedBuilder()
-        .setColor('#00FF7F') // Green to indicate a request
+        .setColor('#00FF7F')
         .setTitle('🔄 Trade Request')
         .setDescription(`${authorUsername} wants to trade with you, ${targetUsername}.`)
         .setFooter({ text: 'The trade will be canceled if there is no response in 2 minutes.' })
         .setTimestamp();
 }
 
-// Function to create buttons for trade acceptance or cancellation
+// Function to create action buttons for trade acceptance or cancellation
 function createInitialActionRow() {
     return new ActionRowBuilder()
         .addComponents(
-            new ButtonBuilder()
-                .setCustomId('acceptTrade')
-                .setLabel('✅ Accept Trade')
-                .setStyle(ButtonStyle.Success),
-            new ButtonBuilder()
-                .setCustomId('cancelTrade')
-                .setLabel('❌ Cancel Trade')
-                .setStyle(ButtonStyle.Danger)
-        );
-}
-
-// Function to create buttons for checkout and cancel
-function createCheckoutActionRow() {
-    return new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId('checkoutTrade')
-                .setLabel('✅ Checkout')
-                .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-                .setCustomId('cancelTrade')
-                .setLabel('❌ Cancel Trade')
-                .setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setCustomId('acceptTrade').setLabel('✅ Accept Trade').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('cancelTrade').setLabel('❌ Cancel Trade').setStyle(ButtonStyle.Danger)
         );
 }
 
 // Function to create a collector for the initial trade request
 function createInitialCollector(sentMessage, targetUserId, authorUserId) {
-    const filter = interaction => interaction.user.id === targetUserId || interaction.user.id === authorUserId;
-    return sentMessage.createMessageComponentCollector({ filter, time: 120000 }); // 2 minutes
+    const filter = interaction => [targetUserId, authorUserId].includes(interaction.user.id);
+    return sentMessage.createMessageComponentCollector({ filter, time: 120000 });
 }
 
-// Function to handle button interactions (accept or cancel)
+// Function to handle button interactions
 function handleInitialCollector(collector, message, sentMessage, tradeData, targetUser, authorInventory, targetInventory) {
     collector.on('collect', async (interaction) => {
         if (interaction.customId === 'acceptTrade') {
             await interaction.update({ content: `${interaction.user.username} has accepted the trade!`, components: [] });
-            // Create checkout buttons after both users accept the trade
-            const checkoutActionRow = createCheckoutActionRow();
-            message.channel.send({ content: 'Both players have accepted the trade! Please specify the resources you want to trade.', components: [checkoutActionRow] });
-            await setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory, checkoutActionRow);
+            message.channel.send('Both players have accepted the trade! Please specify the resources you want to trade.');
+            await setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory);
         } else if (interaction.customId === 'cancelTrade') {
             await interaction.update({ content: `${interaction.user.username} has canceled the trade.`, components: [] });
             sentMessage.delete();
@@ -105,9 +78,17 @@ function handleInitialCollector(collector, message, sentMessage, tradeData, targ
     });
 }
 
+// Function to initialize trade data
+function initializeTradeData(authorId, targetId) {
+    return {
+        [authorId]: { shines: 0, gold: 0, stellarDust: 0 },
+        [targetId]: { shines: 0, gold: 0, stellarDust: 0 },
+    };
+}
+
 // Function to set up the message collector for trade details
-async function setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory, checkoutActionRow) {
-    const filter = m => m.author.id === message.author.id || m.author.id === targetUser.id;
+async function setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory) {
+    const filter = m => [message.author.id, targetUser.id].includes(m.author.id);
     const messageCollector = message.channel.createMessageCollector({ filter, time: 300000 });
 
     message.channel.send('Please specify the resources you want to trade. Example: `2 shines` or `gold 3`');
@@ -123,10 +104,8 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
             }
 
             updateTradeData(tradeData, userId, tradeInput.resource, tradeInput.amount);
-
             const updatedEmbed = updateTradeEmbed(tradeData, message.author.username, targetUser.username);
             await msg.channel.send({ embeds: [updatedEmbed] });
-
             msg.reply(`${msg.author.username}, you have added ${tradeInput.amount} ${tradeInput.resource} to the trade.`);
         } else {
             msg.reply('Invalid input. Make sure you use the correct format. Example: `2 shines`.');
@@ -140,58 +119,43 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
             message.channel.send('There was an error finalizing the trade. Please try again later.');
         });
     });
-
-    // Handle checkout and cancellation from the checkout action row
-    const checkoutCollector = message.channel.createMessageComponentCollector({ filter: interaction => interaction.customId === 'checkoutTrade' || interaction.customId === 'cancelTrade', time: 300000 });
-    checkoutCollector.on('collect', async (interaction) => {
-        if (interaction.customId === 'checkoutTrade') {
-            await interaction.reply('Trade has been locked! Finalizing trade...');
-            await finalizeTrade(tradeData, message.author.id, targetUser.id);
-        } else if (interaction.customId === 'cancelTrade') {
-            await interaction.reply('Trade has been canceled.');
-            messageCollector.stop();
-        }
-    });
-
-    checkoutCollector.on('end', () => {
-        message.channel.send('Checkout time has ended, trade will be canceled.');
-        messageCollector.stop();
-    });
 }
 
-// Function to initialize trade data
-function initializeTradeData(authorId, targetId) {
-    return {
-        [authorId]: { shines: 0, gold: 0, stellarDust: 0, moons: 0, cards: [], frames: [], banners: [], titles: [], buffs: [], divinityAbsolute: [], fastHands: [], glows: [], godOfEvasion: [] },
-        [targetId]: { shines: 0, gold: 0, stellarDust: 0, moons: 0, cards: [], frames: [], banners: [], titles: [], buffs: [], divinityAbsolute: [], fastHands: [], glows: [], godOfEvasion: [] },
-    };
-}
-
-// Function to parse user trade input
+// Parse user trade input
 function parseTradeInput(content) {
-    const regex = /(\d+)\s*(shines|gold|stellar\s*dust|moons|cards|frames|banners|titles|buffs|divinity\s*absolute|fast\s*hands|glows|god\s*of\s*evasion)/i;
+    const regex = /(\d+)\s*(shines|gold|stellar\s*dust)/i;
     const match = content.match(regex);
-
     if (match) {
         const amount = parseInt(match[1]);
-        if (amount <= 0) return null; // Validate amount
-        const resource = match[2].toLowerCase().replace(/\s+/g, '');
-        return { amount, resource };
+        const resource = match[2].toLowerCase();
+        return amount > 0 ? { amount, resource } : null;
     }
-
     return null;
+}
+
+// Check if user has sufficient resources for trade
+function hasSufficientResources(inventory, tradeData, tradeInput) {
+    return inventory[tradeInput.resource] >= (tradeData[tradeInput.resource] + tradeInput.amount);
 }
 
 // Update trade data based on user input
 function updateTradeData(tradeData, userId, resource, amount) {
-    if (Array.isArray(tradeData[userId][resource])) {
-        tradeData[userId][resource].push(amount); // If it's an array like 'cards', 'titles', etc.
-    } else {
-        tradeData[userId][resource] += amount; // For numeric resources like 'shines', 'gold', etc.
-    }
+    tradeData[userId][resource] += amount;
 }
 
-// Function to handle the trade process after both users accept
+// Update trade embed
+function updateTradeEmbed(tradeData, authorUsername, targetUsername) {
+    return new EmbedBuilder()
+        .setColor('#7289DA')
+        .setTitle(`Trade between ${authorUsername} and ${targetUsername}`)
+        .setDescription('These are the selected resources for the trade.')
+        .addFields(
+            { name: `${authorUsername}'s Offer`, value: `${tradeData[authorUsername].shines} shines, ${tradeData[authorUsername].gold} gold`, inline: true },
+            { name: `${targetUsername}'s Offer`, value: `${tradeData[targetUsername].shines} shines, ${tradeData[targetUsername].gold} gold`, inline: true }
+        );
+}
+
+// Finalize trade
 async function finalizeTrade(tradeData, authorId, targetId) {
     const authorInventory = await fetchInventory(authorId);
     const targetInventory = await fetchInventory(targetId);
@@ -207,73 +171,19 @@ async function finalizeTrade(tradeData, authorId, targetId) {
     await addTradeItems(targetId, tradeData[authorId]);
 }
 
-// Function to ensure users have sufficient resources for the trade
-function hasSufficientResources(inventory, tradeData, tradeInput) {
-    const resource = tradeInput.resource;
-    const amount = tradeInput.amount;
-
-    if (Array.isArray(tradeData[resource])) {
-        return (inventory[resource][0] >= tradeData[resource].length);
-    }
-    return (tradeData[resource] + amount <= inventory[resource][0]);
-}
-
-// Function to update trade embed
-function updateTradeEmbed(tradeData, authorUsername, targetUsername) {
-    const embed = new EmbedBuilder()
-        .setColor('#7289DA')
-        .setTitle(`Trade between ${authorUsername} and ${targetUsername}`)
-        .setDescription('These are the selected resources for the trade.')
-        .addFields(
-            { name: `${authorUsername}'s Offer`, value: createTradeList(tradeData[authorUsername]), inline: true },
-            { name: `${targetUsername}'s Offer`, value: createTradeList(tradeData[targetUsername]), inline: true }
-        );
-    return embed;
-}
-
-// Create list of items for trade embed
-function createTradeList(tradeData) {
-    let tradeList = '';
-    for (let resource in tradeData) {
-        if (tradeData[resource] > 0 || tradeData[resource].length > 0) {
-            tradeList += `${capitalize(resource)}: ${Array.isArray(tradeData[resource]) ? tradeData[resource].join(', ') : tradeData[resource]}\n`;
-        }
-    }
-    return tradeList || 'No items selected.';
-}
-
-// Capitalize the first letter of the string
-function capitalize(string) {
-    return string.charAt(0).toUpperCase() + string.slice(1);
-}
-
 // Function to add trade items to the inventory
 async function addTradeItems(userId, tradeItems) {
-    // Fetch the current inventory
     const inventory = await fetchInventory(userId);
-
-    // Add trade items to the inventory
     for (const resource in tradeItems) {
-        if (Array.isArray(tradeItems[resource])) {
-            inventory[resource].push(...tradeItems[resource]); // Add items from array
-        } else {
-            inventory[resource] += tradeItems[resource]; // Increase quantity for numeric resources
-        }
+        inventory[resource] += tradeItems[resource];
     }
-
-    // Update the inventory in the database
     await updateInventory(userId, inventory);
 }
 
 // Function to subtract items from inventory
 function subtractItemsFromInventory(inventory, tradeData) {
-    // Subtract trade items from the inventory
     for (const resource in tradeData) {
-        if (Array.isArray(tradeData[resource])) {
-            inventory[resource] = inventory[resource].slice(0, -tradeData[resource].length); // Decrease quantity for arrays
-        } else {
-            inventory[resource] -= tradeData[resource]; // Subtract numeric values
-        }
+        inventory[resource] -= tradeData[resource];
     }
     return inventory;
 }

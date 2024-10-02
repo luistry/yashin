@@ -36,4 +36,3 @@ async function wishlistMention(updatedCharacters, channel) {
     }
 }
 
-module.exports = { wishlistMention };

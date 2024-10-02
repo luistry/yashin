@@ -1,6 +1,6 @@
 const { EmbedBuilder, AttachmentBuilder, ReactionCollector, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Canvas = require('canvas');
-const {wishlistMention} = require('./utils/wishlistmention')
+
 const { AnimeCharacter, fetchInventory, addCardToInventory, fetchLastDrop, updateLastDrop, fetchLastGrab, updateLastGrab ,consumeItems,updateDailyBuffs } = require('./database/database');
 const fetch = require('node-fetch');
 const frameImageUrl = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
@@ -634,7 +634,13 @@ module.exports = {
                         dropped_on: new Date(),
                         grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta
                         channel_id: message.channel.id,
-                        guild_id: message.guild.id
+                        guild_id: message.guild.id,
+                        default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
+                        morph_apply: "",
+                        last_morph: "",
+                        color_letter_name: "",
+                        color_letter_series: "",
+                        color_letter: ""
                     });
 
                     await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` ·  ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
