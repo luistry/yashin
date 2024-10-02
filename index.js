@@ -42,24 +42,9 @@ client.once("ready", () => {
 });
 
 // Manejo de errores globales
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection:', reason);
-    // Ignora ciertos errores
-    if (reason.code === 10062) {
-        console.warn('Ignoring unknown interaction error');
-        return;
-    }
-    // Maneja otros errores críticos
-});
 
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-    // Ignora errores de interacción desconocida
-    if (error.code === 10062) {
-        console.warn('Ignoring unknown interaction error');
-        return;
-    }
-});
+
+
 
 // Resto del código
 
@@ -80,8 +65,8 @@ const processQueue = async () => {
             const command = require(`./commands/${commandName}`);
             await command.run(message, args);
 
-            // Add a short delay before processing the next command to prevent spam
-            await new Promise(resolve => setTimeout(resolve, 1000)); 
+          
+          
 
         } catch (error) {
             console.error(`Could not load the command ${commandName}:`, error);
@@ -150,25 +135,6 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 // Manejo de interacciones (Ejemplo de botón)
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isButton()) return; // Solo maneja interacciones de botón
-
-    try {
-        // Aquí maneja la interacción del botón
-        await interaction.deferUpdate();
-        // Agrega lógica de respuesta aquí
-
-    } catch (error) {
-        // Manejo de errores de interacción
-        console.error('Error handling button interaction:', error);
-        if (error.code === 10062) {
-            console.warn('Ignoring unknown interaction error');
-        } else {
-            // Maneja otros errores
-            await interaction.reply({ content: 'An error occurred while handling the button interaction.', ephemeral: true });
-        }
-    }
-});
 
 // Aquí comienza el resto de tu código
 

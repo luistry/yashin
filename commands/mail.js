@@ -23,6 +23,10 @@ module.exports = {
 
         const inventoryId = inventory._id;
         let mails = inventory.mails;
+
+        // Ordenar los mails para que los no leídos aparezcan primero
+        mails.sort((a, b) => (a.Readed ? 1 : 0) - (b.Readed ? 1 : 0));
+
         let currentIndex = 0;
 
         // Función para generar el embed del mail
@@ -74,10 +78,7 @@ module.exports = {
 
                     // Actualizar el inventario con las recompensas
                     const updatedInventory = {
-                   
-                    
-                       shines: parseInt(inventory.shines?.[0] || 0) + parseInt(rewards.shines || 0),
-                     
+                        shines: parseInt(inventory.shines?.[0] || 0) + parseInt(rewards.shines || 0),
                         mails: inventory.mails,
                     };
 
