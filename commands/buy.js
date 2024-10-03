@@ -1,4 +1,4 @@
-const { fetchInventory, Frame, updateInventory, addFrameToInventory } = require('./database/database');
+const { fetchInventory, Frame, updateInventory, addFrameToInventory } = require('./database/database'); 
 const { ActionRowBuilder, ButtonBuilder, EmbedBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
@@ -8,7 +8,7 @@ module.exports = {
         let quantity = 1;
         let itemName;
 
-       if (!isNaN(args[0])) {
+        if (!isNaN(args[0])) {
             quantity = parseInt(args[0], 10);
             itemName = args.slice(1).join(' ').toLowerCase();
         } else {
@@ -31,12 +31,10 @@ module.exports = {
             'speed of reaction': { cost: 200, type: 'SpeedOfReaction', currency: 'moons' }
         };
 
-      
-           const frames = await Frame.find();
+        const frames = await Frame.find();
         const frame = frames.find(f => f.name.toLowerCase() === itemName);
 
         if (frame) {
-            // Lógica de compra de frames
             const frameCost = 800; // Costo fijo por cada frame
             const totalCost = frameCost * quantity;
             const currencyEmoji = ':crescent_moon:';
@@ -68,7 +66,7 @@ module.exports = {
             });
 
             const filter = i => i.message.id === sentMessage.id && (i.customId === 'confirm_frame' || i.customId === 'cancel_frame');
-            const collector = sentMessage.createMessageComponentCollector({ filter, time: 15000 });
+            const collector = sentMessage.createMessageComponentCollector({ filter, time: 45000 });
 
             collector.on('collect', async i => {
                 if (i.customId === 'confirm_frame') {
@@ -79,7 +77,6 @@ module.exports = {
                         return i.reply('Your inventory could not be found. Please try again later.');
                     }
 
-                    // Convertir el valor actual a número y actualizarlo
                     const currentMoons = Number(inventory.moons) || 0;
                     if (currentMoons < totalCost) {
                         const errorEmbed = new EmbedBuilder()
@@ -97,14 +94,19 @@ module.exports = {
                     }
 
                     try {
-                        // Agregar frame al inventario
                         const result = await addFrameToInventory(userId, frame.name, quantity);
 
                         // Deduct the cost from the user's moons
                         inventory.moons = currentMoons - totalCost;
 
-                        await inventory.save(); // Suponiendo que 'inventory' es un documento Mongoose
-                        await i.reply(`You have successfully purchased ${quantity} ${frame.name}(s).`);
+                        await inventory.save();
+
+                        const successEmbed = new EmbedBuilder()
+                            .setColor('#00FF00') // Cambia el color a verde en caso de éxito
+                            .setTitle('Purchase Successful!')
+                            .setDescription(`You have successfully purchased **${quantity} ${frame.name}(s)**.`);
+
+                        await i.reply({ embeds: [successEmbed] });
                     } catch (err) {
                         console.error('Error updating inventory:', err);
                         await i.reply('There was an error processing your purchase.');
@@ -166,7 +168,7 @@ module.exports = {
             });
 
             const filter = i => i.message.id === sentMessage.id && (i.customId === 'confirm_item' || i.customId === 'cancel_item');
-            const collector = sentMessage.createMessageComponentCollector({ filter, time: 15000 });
+            const collector = sentMessage.createMessageComponentCollector({ filter, time: 45000 });
 
             collector.on('collect', async i => {
                 if (i.customId === 'confirm_item') {
@@ -177,7 +179,6 @@ module.exports = {
                         return i.reply('Your inventory could not be found. Please try again later.');
                     }
 
-                    // Convertir el valor actual de la moneda a número
                     const userCurrency = item.currency === 'shines' ? (inventory.shines || 0) :
                         item.currency === 'moons' ? (inventory.moons || 0) :
                         (inventory.gold || 0);
@@ -198,13 +199,11 @@ module.exports = {
                     }
 
                     try {
-                        // Actualizar inventario con la correcta posición y manejar valores como Int32
                         if (!inventory[item.type]) {
                             inventory[item.type] = 0;
                         }
                         inventory[item.type] = Number(inventory[item.type]) + quantity;
 
-                        // Deduct currency based on item currency
                         if (item.currency === 'shines') {
                             inventory.shines = Number(inventory.shines) - totalCost;
                         } else if (item.currency === 'moons') {
@@ -215,7 +214,12 @@ module.exports = {
 
                         await updateInventory(userId, inventory);
 
-                        await i.reply(`You have successfully purchased ${quantity} ${itemName}(s).`);
+                        const successEmbed = new EmbedBuilder()
+                            .setColor('#00FF00') // Cambia el color a verde en caso de éxito
+                            .setTitle('Purchase Successful!')
+                            .setDescription(`You have successfully purchased **${quantity} ${itemName}(s)**.`);
+
+                        await i.reply({ embeds: [successEmbed] });
                     } catch (err) {
                         console.error('Error updating inventory:', err);
                         await i.reply('There was an error processing your purchase.');

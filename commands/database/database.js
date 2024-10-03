@@ -86,7 +86,7 @@ async function addCardToInventory(userId, cardData) {
             { new: true, upsert: true } // 'upsert' para crear el documento si no existe
         );
 
-      
+        console.log('Updated Inventory:', inventory);
         return inventory;
     } catch (error) {
         console.error('Error updating inventory:', error);
@@ -312,7 +312,7 @@ async function addFrameToInventory(userId, frameName, quantity) {
                 },
                 { new: true }
             );
-//update
+
             console.log('Inventario actualizado correctamente.');
             return updateResult;
         } else {
@@ -739,32 +739,30 @@ async function transferFrame(fromInventory, toInventory, frameName, amount) {
 
 async function addAnimeCharacter(name, series, img_url) {
     try {
-        // Fetch the highest _id character and ensure the new ID starts from 15409
+        // Busca el personaje con el _id más alto
         const highestIdCharacter = await AnimeCharacter.findOne().sort({ _id: -1 }).exec();
-        let newId = highestIdCharacter ? highestIdCharacter._id + 1 : 15409;
 
-        // Ensure the new ID is at least 15409
-        if (newId < 15409) {
-            newId = 15409;
-        }
+        // Si no hay personajes en la base de datos, asigna el _id como 1, si no, suma 1 al _id más alto
+        const newId = highestIdCharacter ? highestIdCharacter._id + 1 : 1;
 
-        // Create and save the new character
+        // Crea un nuevo personaje con el _id incrementado
         const newCharacter = new AnimeCharacter({
             _id: newId,
-            name,
-            series,
-            img_url,
-            wishlist: 0,  // Default value
-            burned: 0     // Default value
+            name: name,
+            series: series,
+            img_url: img_url,
+            wishlist: 0, // Valor por defecto
+            burned: 0 // Valor por defecto
         });
 
+        // Guarda el nuevo personaje en la base de datos
         await newCharacter.save();
-        console.log('New anime character added:', newCharacter);
+
+        console.log('Nuevo personaje de anime añadido:', newCharacter);
     } catch (error) {
-        console.error('Error adding the anime character:', error);
+        console.error('Error al añadir el personaje de anime:', error);
     }
 }
-
 async function editAnimeCharacterImage(name, series, new_img_url) {
     try {
         // Search for the character by name and series
@@ -836,7 +834,32 @@ const updateCardsWithCharacterIdForAllUsers = async () => {
 //Update every card in the user collection and change the image and series name based in the id
 //updateCardsWithCharacterIdForAllUsers();
 
-// Invocar la función para actualizar las cartas en todos los inventario
+// Invocar la función para actualizar las cartas en todos los inventarios válidos
+
+
+
+
+
+//
+//
+
+async function fetchCharacterData(id) {
+    try {
+        const response = await axios.get(`https://api.jikan.moe/v4/characters/${id}/full`);
+        const character = response.data.data;
+
+        // Mapear los datos necesarios
+        return {
+            _id: character.mal_id,  // Asignar el ID de MyAnimeList como _id
+            name: character.name,
+            series: character.anime[0]?.anime?.title || 'Unknown', // Asignar el título del anime si está disponible
+            img_url: character.images.jpg.image_url // Asignar la URL de la imagen
+        };
+    } catch (err) {
+        console.error(`Error fetching data for character ID ${id}: ${err.message}`);
+        throw err; // Re-lanzar el error para manejarlo más arriba
+    }
+}
 //
 const applyBuffToUser = async (userId, buffName) => {
     try {
@@ -980,7 +1003,67 @@ async function getDatabaseSnapshot() {
   //      throw error;
 //    //}
 //}
+//
 
+
+
+
+//
+
+async function insertAnimeCharacters() {
+    try {
+        const characters = [];
+        for (let i = 1; i <= 15000; i++) {
+            try {
+                console.log(`Fetching data for character ID ${i}...`);
+                // Verifica si el personaje ya está en la base de datos
+                const existingCharacter = await AnimeCharacter.findById(i);
+                if (existingCharacter) {
+                    console.log(`Character ID ${i} already exists in the database. Skipping.`);
+                    continue; // Saltar al siguiente ID si ya existe
+                }
+
+                const characterData = await fetchCharacterData(i);
+                console.log(`Fetched data for character ID ${i}:`, characterData);
+                characters.push(characterData);
+
+                await delay(2000); // Espera 2 segundos entre cada solicitud para evitar el límite de tasa
+            } catch (err) {
+                console.error(`Failed to fetch or insert character with ID ${i}:`, err.message);
+                if (err.response?.status === 429) {
+                    console.log(`Rate limit exceeded for character ID ${i}. Retrying in 2000ms...`);
+                    await delay(2000); // Espera adicional en caso de límite de tasa
+                }
+            }
+        }
+
+        if (characters.length > 0) {
+            console.log('Inserting characters into database...');
+            await AnimeCharacter.insertMany(characters, { ordered: false });
+            console.log('Anime characters inserted successfully.');
+        } else {
+            console.log('No characters were inserted due to API errors or existing entries.');
+        }
+    } catch (err) {
+        console.error('Error inserting anime characters:', err);
+    }
+}
+//
+
+
+
+// Función para manejar el voto de un usuario
+
+
+// Ejemplo de uso: Reemplaza 'USER_ID' con el ID del usuario que votó en tu lógica
+ // Asigna el ID del usuario que votó aquí
+
+  //insertAnimeCharacters(); insertar personajes de anime 
+
+// Delay function to wait between API requests
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Exportación de las funciones y modelos
 module.exports = { 
@@ -990,5 +1073,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,
 };
