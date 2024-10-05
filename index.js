@@ -1,3 +1,4 @@
+
 // Manejo de errores globales
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);

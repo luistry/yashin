@@ -608,7 +608,16 @@ module.exports = {
                         dropped_on: new Date(),
                         grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta
                         channel_id: message.channel.id,
-                        guild_id: message.guild.id
+                        guild_id: message.guild.id,
+                        default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
+                        morph_apply: "",
+                        last_morph: "",
+                        color_letter_name: "",
+                        last_color_letter_name: "",
+                        last_color_letter_series: "",
+                        color_letter_series: "",
+                        last_color_letter: "",
+                        color_letter: ""
                     });
 
                     await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` ·  ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);

@@ -3,10 +3,6 @@ const axios = require('axios');
 const fetch = require('node-fetch');
 
 // Supongamos que tienes el userId de alguna otra manera
-
-
-
-
 // Define el esquema para el inventario
 const inventorySchema = new mongoose.Schema({
     _id: String,
@@ -86,7 +82,7 @@ async function addCardToInventory(userId, cardData) {
             { new: true, upsert: true } // 'upsert' para crear el documento si no existe
         );
 
-        console.log('Updated Inventory:', inventory);
+ 
         return inventory;
     } catch (error) {
         console.error('Error updating inventory:', error);
@@ -645,34 +641,6 @@ async function consumeItems(userId, items) {
         return false;
     }
 }
-//funcionese para trade
-async function transferCardByCode(fromInventory, toInventory, cardCode, amount) {
-    try {
-        // Encuentra el índice de la carta en el inventario de origen
-        const cardIndex = fromInventory.cards.findIndex(card => card.code === cardCode);
-
-        if (cardIndex === -1) {
-            throw new Error('La carta con el código especificado no se encontró en el inventario del usuario de origen.');
-        }
-
-        // Extrae la carta del inventario de origen
-        const [card] = fromInventory.cards.splice(cardIndex, 1);
-
-        // Ajusta la cantidad de la carta en el inventario de destino
-        if (amount) {
-            card.quantity = (card.quantity || 1) + amount;
-        } else {
-            card.quantity = (card.quantity || 1);
-        }
-
-        toInventory.cards.push(card);
-
-        console.log('Carta transferida con éxito.');
-    } catch (error) {
-        console.error('Error al transferir la carta:', error);
-        throw new Error('Error al transferir la carta.');
-    }
-}
 //
 async function addTagToInventory(userId, tagName, emoji) {
     try {
@@ -832,8 +800,7 @@ const updateCardsWithCharacterIdForAllUsers = async () => {
 };
 
 //Update every card in the user collection and change the image and series name based in the id
-//updateCardsWithCharacterIdForAllUsers();
-
+//updateCardsWithCharacterIdForAllUsers()
 // Invocar la función para actualizar las cartas en todos los inventarios válidos
 
 
