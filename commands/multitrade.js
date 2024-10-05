@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js'); 
 const { updateInventory, fetchInventory } = require('./database/database');
 
 module.exports = {
@@ -7,38 +7,36 @@ module.exports = {
     run: async (message, args) => {
         try {
             const targetUser = message.mentions.users.first();
-            if (!targetUser) {
-                return message.channel.send('Please mention a user to trade with.');
-            }
+            if (!targetUser) return message.channel.send('Please mention a user to trade with.');
 
-            const [authorInventory, targetInventory] = await fetchInventories(message.author.id, targetUser.id);
+            // Fetch inventories
+            console.log(`Fetching inventories for ${message.author.username} and ${targetUser.username}`);
+            const [authorInventory, targetInventory] = await Promise.all([
+                fetchInventory(message.author.id),
+                fetchInventory(targetUser.id),
+            ]);
 
-            const tradeData = initializeTradeData(message.author.id, targetUser.id, authorInventory, targetInventory);
+            console.log(`Inventories fetched:`, { authorInventory, targetInventory });
+
+            // Initialize trade data
+            const tradeData = initializeTradeData(message.author.id, targetUser.id);
+            console.log(`Trade data initialized:`, tradeData);
+
             const tradeRequestEmbed = createTradeRequestEmbed(message.author.username, targetUser.username);
             const actionRow = createInitialActionRow();
 
+            // Send trade request message
             const sentMessage = await message.channel.send({ embeds: [tradeRequestEmbed], components: [actionRow] });
             const collector = createInitialCollector(sentMessage, targetUser.id, message.author.id);
 
+            // Handle collector interactions
             handleInitialCollector(collector, message, sentMessage, tradeData, targetUser, authorInventory, targetInventory);
-            await setupMessageCollector(message, tradeData, targetUser, sentMessage);
         } catch (error) {
             console.error('Error in multitrade command:', error);
             message.channel.send('An error occurred while trying to execute the trade. Please try again.');
         }
     },
 };
-
-// Fetch inventories concurrently
-async function fetchInventories(authorId, targetId) {
-    console.log(`Fetching inventories for ${authorId} and ${targetId}`);
-    const [authorInventory, targetInventory] = await Promise.all([
-        fetchInventory(authorId),
-        fetchInventory(targetId),
-    ]);
-    console.log(`Inventories fetched:`, { authorInventory, targetInventory });
-    return [authorInventory, targetInventory];
-}
 
 // Function to create the initial trade request embed
 function createTradeRequestEmbed(authorUsername, targetUsername) {
@@ -86,27 +84,74 @@ function handleInitialCollector(collector, message, sentMessage, tradeData, targ
     collector.on('collect', async (interaction) => {
         console.log(`Interaction collected from ${interaction.user.username}: ${interaction.customId}`);
 
+        // ID del usuario que interactúa
         const userId = interaction.user.id; 
         
         if (interaction.customId === 'acceptTrade') {
+            // Comprobación de qué usuario está aceptando el comercio
             if (userId === targetUser.id) {
                 tradeData[targetUser.id].accepted = true;
                 console.log(`Trade accepted by ${targetUser.username}. Current trade data:`, tradeData);
+                await setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory, sentMessage);
+            } else if (userId === message.author.id) {
+                return interaction.reply({ content: '❌ Only the target user can accept this trade.', ephemeral: true });
                 
-                // Check if the author also accepted
-                if (tradeData[message.author.id].accepted) {
-                    console.log(`Both players have accepted the trade.`);
-                    const actionRow = createTradeActionRow();
-                    const tradingEmbed = createTradingEmbed(message.author.username, targetUser.username, tradeData);
-
-                    await interaction.followUp({ embeds: [tradingEmbed], components: [actionRow] });
-                    await setupMessageCollector(message, tradeData, targetUser, sentMessage);
-                } else {
-                    await interaction.reply({ content: 'Trade accepted. Waiting for the other player to accept.', ephemeral: true });
-                }
             } else {
-                await interaction.reply({ content: '❌ Only the target user can accept the trade.', ephemeral: true });
+                console.error(`Unexpected user: ${interaction.user.username}. Not part of the trade.`);
+                return interaction.reply({ content: '❌ You are not part of this trade.', ephemeral: true });
             }
+
+            // Crear el embed de comercio y enviarlo
+            const tradingEmbed = createTradingEmbed(message.author.username, targetUser.username, tradeData);
+            const actionRow = createTradeActionRow();
+            await interaction.update({ embeds: [tradingEmbed], components: [actionRow] });
+            const filter = (i) => {
+                return ['confirmTrade', 'cancelTrade'].includes(i.customId) &&
+                       [message.author.id, targetUser.id].includes(i.user.id);
+            };
+            
+            // Crear el collector para escuchar las interacciones de botones
+            const buttonCollector = sentMessage.createMessageComponentCollector({ filter, time: 300000 }); // 5 minutos de espera
+            
+            // Escuchar el evento 'collect' cuando se presiona un botón
+            buttonCollector.on('collect', async (i) => {
+                if (i.customId === 'confirmTrade') {
+                    // Si el usuario confirma el trade
+                    const userId = i.user.id;
+                    tradeData[userId].confirmed = true; // Marca que el usuario ha confirmado su trade
+            
+                    await i.reply(`${i.user.username} has confirmed the trade.`);
+            
+                    // Verificar si ambos han confirmado
+                    if (tradeData[message.author.id].confirmed && tradeData[targetUser.id].confirmed) {
+                        // Finalizar el trade
+                        await finalizeTrade(interaction,tradeData, message.author.id, targetUser.id);
+                        await i.followUp('✅ Trade finalized!');
+                        buttonCollector.stop(); // Finalizar el collector después del trade
+                        collector.stop();
+                    }
+                } else if (i.customId === 'cancelTrade') {
+                    // Si el usuario cancela el trade
+                    await i.reply(`${i.user.username} has canceled the trade.`);
+                    buttonCollector.stop(); // Finalizar el collector
+                }
+            });
+            
+            // Escuchar el evento 'end' cuando el tiempo del collector termine o alguien cancele el trade
+            buttonCollector.on('end', async (collected, reason) => {
+                if (reason === 'time') {
+                    await sentMessage.edit({
+                        components: [] // Desactiva los botones después de que el tiempo termine
+                    });
+                    return message.channel.send('⏳ Trade session timed out due to inactivity.');
+                } else if (reason === 'user') {
+                    await sentMessage.edit({
+                        components: [] // Desactiva los botones si el trade fue confirmado o cancelado
+                    });
+                }
+            });
+            
+      
         } else if (interaction.customId === 'cancelTrade') {
             console.log(`${interaction.user.username} has canceled the trade.`);
             await interaction.update({ content: `${interaction.user.username} has canceled the trade.`, components: [] });
@@ -115,6 +160,7 @@ function handleInitialCollector(collector, message, sentMessage, tradeData, targ
         }
     });
 }
+
 
 // Create a new action row with checkout buttons
 function createTradeActionRow() {
@@ -126,117 +172,241 @@ function createTradeActionRow() {
 }
 
 // Function to initialize trade data
-function initializeTradeData(authorId, targetId, authorInventory, targetInventory) {
-    return {
-        [authorId]: { ...initializeUserData(authorInventory), accepted: false, confirmed: false },
-        [targetId]: { ...initializeUserData(targetInventory), accepted: false, confirmed: false }
+function initializeTradeData(authorId, targetId) {
+    const tradeData = {
+        [authorId]: { shines: 0, moons: 0, cards: [], stellarDust: 0, accepted: false, confirmed: false },
+        [targetId]: { shines: 0, moons: 0, cards: [], stellarDust: 0, accepted: false, confirmed: false },
     };
+    console.log('Trade data initialized:', tradeData);
+    return tradeData;
 }
 
-// Helper function to initialize user data
-function initializeUserData(inventory) {
-    return {
-        shines: inventory.shines?.[0] || 0,
-        moons: inventory.moons?.[0] || 0,
-        stellarDust: inventory.stellar_dust?.[0] || 0,
-        cards: inventory.cards || [],
-        extra_grab: inventory.extra_grab?.[0] || 0,
-        extra_drop: inventory.extra_drop?.[0] || 0,
-        DivinityAbsolute: inventory.DivinityAbsolute?.[0] || 0,
-        FastHands: inventory.FastHands?.[0] || 0,
-        Glows: inventory.Glows?.[0] || 0,
-        GodofEvasion: inventory.GodofEvasion?.[0] || 0,
-        SpeedOfReaction: inventory.SpeedOfReaction?.[0] || 0
-    };
-}
-
+// Function to format offer data
 function formatOffer(offer) {
+    if (!offer || Object.keys(offer).length === 0) {
+        return 'No resources added.';
+    }
+
     const entries = [];
     for (const [key, value] of Object.entries(offer)) {
         if (key === 'cards') {
-            entries.push(`${value.length} cards`); // Show the number of cards
+            entries.push(`${value.length} cards`); // Display number of cards
         } else if (value > 0) {
-            entries.push(`${value} ${key}`); // Show the amount and type of resource
+            entries.push(`${value} ${key}`); // Display amount and type of resource
         }
     }
-    return entries.length > 0 ? entries.join(', ') : 'No resources added.';
+    const formatted = entries.join(', '); // Return formatted string
+    console.log(`Formatted offer:`, formatted);
+    return formatted;
 }
 
-// Set up message collector for trade details
-async function setupMessageCollector(message, tradeData, targetUser, sentMessage) {
+// Function to set up the message collector for trade details
+// Function to set up the message collector for trade details
+async function setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory, sentMessage) {
     const filter = m => [message.author.id, targetUser.id].includes(m.author.id);
     const messageCollector = message.channel.createMessageCollector({ filter, time: 300000 });
+    const lastInputs = { [message.author.id]: null, [targetUser.id]: null }; // Para evitar spam del mismo mensaje
+
+    message.channel.send('Please specify the resources you want to trade. Example: `2 shines` or `moons 3`');
 
     messageCollector.on('collect', async (msg) => {
         const userId = msg.author.id;
-        
-        // Ensure both players have accepted before processing trade input
-        if (!tradeData[message.author.id].accepted || !tradeData[targetUser.id].accepted) {
-            return msg.reply('❌ Both players must accept the trade before adding resources.');
-        }
-
-        console.log(`Trade input received from ${msg.author.username}: ${msg.content}`);
         const tradeInput = parseTradeInput(msg.content);
 
-        if (tradeInput) {
-            const userInventory = userId === message.author.id ? await fetchInventory(userId) : await fetchInventory(targetUser.id);
+        if (!tradeInput) {
+            return msg.reply('❌ Invalid input. Make sure you use the correct format. Example: `2 shines`.');
+        }
+
+        // Prevenir spam: Evitar que el usuario repita la misma entrada consecutivamente
+        if (lastInputs[userId] && lastInputs[userId].resource === tradeInput.resource && lastInputs[userId].amount === tradeInput.amount) {
+            return msg.reply('🚫 You have already added this exact offer. Please make a different offer.');
+        }
+        lastInputs[userId] = tradeInput; // Actualiza la última entrada del usuario
+
+        const userInventory = userId === message.author.id ? authorInventory : targetInventory;
+
+        if (!hasSufficientResources(userInventory, tradeData[userId], tradeInput)) {
+            return msg.reply('🚫 Insufficient resources for the trade. Please adjust your offer.');
+        }
+
+        // Actualiza los datos del trade
+        updateTradeData(tradeData, userId, tradeInput.resource, tradeInput.amount);
+        console.log(`Trade data updated for ${userId}:`, tradeData);
+
+        // Crear un nuevo embed con las ofertas actualizadas
+        const updatedEmbed = new EmbedBuilder()
+            .setTitle(`Trade between ${message.author.username} and ${targetUser.username}`)
+            .setDescription('These are the selected resources for the trade.')
+            .addFields(
+                {
+                    name: `${message.author.username}'s Offer`,
+                    value: formatOffer(tradeData[message.author.id]) || 'No resources added', // Formatea los datos de la oferta
+                    inline: true
+                },
+                {
+                    name: `${targetUser.username}'s Offer`,
+                    value: formatOffer(tradeData[targetUser.id]) || 'No resources added', // Formatea los datos de la oferta
+                    inline: true
+                }
+            )
+            .setFooter({ text: 'The trade will be canceled if there is no response in 5 minutes.' }); // El argumento debe ser un objeto
+
+        // Editar el mensaje original con el nuevo embed
+        console.log('Updating embed with new trade data:', tradeData); // Verificar el estado antes de editar el embed
+        await sentMessage.edit({ embeds: [updatedEmbed] }).catch(console.error);
+
+        msg.reply(`✅ ${msg.author.username}, you have added **${tradeInput.amount} ${tradeInput.resource}** to the trade.`);
+
+        // Condición para finalizar el colector si ambos jugadores están satisfechos con su oferta
+        if (tradeData[message.author.id].confirmed && tradeData[targetUser.id].confirmed) {
+            console.log('Both users have confirmed their trades. Finalizing trade.');
             
-            if (!hasSufficientResources(userInventory, tradeData[userId], tradeInput)) {
-                return msg.reply('🚫 Insufficient resources for the trade. Please adjust your offer.');
-            }
+            // Finalizar el comercio aquí
+            await finalizeTrade(tradeData, message.author.id, targetUser.id).catch(err => {
+                console.error('Error finalizing trade:', err);
+                message.channel.send('⚠️ There was an error finalizing the trade. Please try again later.');
+            });
 
-            updateTradeData(tradeData, userId, tradeInput.resource, tradeInput.amount);
-            console.log(`Trade data updated for ${userId}:`, tradeData);
-            const updatedEmbed = createTradingEmbed(message.author.username, targetUser.username, tradeData);
-            await sentMessage.edit({ embeds: [updatedEmbed] });
-            msg.reply(`✅ ${msg.author.username}, you have added **${tradeInput.amount} ${tradeInput.resource}** to the trade.`);
-        } else {
-            msg.reply('❌ Invalid input. Make sure you use the correct format. Example: `2 shines`.');
+            messageCollector.stop();
         }
     });
 
-    messageCollector.on('end', async (collected) => {
-        const totalMessages = collected.size;
-        console.log(`Message collector ended. Total messages collected: ${totalMessages}`);
-        if (totalMessages === 0) {
+    messageCollector.on('end', (collected) => {
+        if (collected.size === 0) {
             message.channel.send('⏳ Trade session ended due to inactivity. Please start a new trade if you wish to continue.');
-            return;
+        } else {
+            message.channel.send('🚫 Trade session ended. No further trades can be added.');
         }
-        await finalizeTrade(tradeData, message.author.id, targetUser.id).catch(err => {
-            console.error('Error finalizing trade:', err);
-            message.channel.send('❌ There was an error finalizing the trade. Please try again.');
-        });
     });
 }
-
-// Finalize trade
-async function finalizeTrade(tradeData, authorId, targetId) {
-    // Logic for confirming and finalizing the trade goes here.
-    console.log(`Finalizing trade between ${authorId} and ${targetId}...`);
-}
-
-// Check if the user has sufficient resources for the trade
-function hasSufficientResources(inventory, tradeDataUser, tradeInput) {
-    const { resource, amount } = tradeInput;
-    return inventory[resource] >= (tradeDataUser[resource] || 0) + amount;
-}
-
-// Parse trade input from user message
-function parseTradeInput(input) {
-    const regex = /^(\d+)\s+(\w+)$/; // Matches 'number resource'
-    const match = input.match(regex);
+// Parse user trade input
+function parseTradeInput(content) {
+    const regex = /(\d+)\s*(shines|moons|cards|stellar\s*dust)/i;
+    const match = content.match(regex);
     if (match) {
-        const amount = parseInt(match[1], 10);
+        const amount = parseInt(match[1]);
         const resource = match[2].toLowerCase();
-        return { amount, resource };
+        console.log(`Parsed trade input:`, { amount, resource });
+        return amount > 0 ? { amount, resource } : null;
     }
     return null;
 }
 
-// Update trade data with the user's offer
+// Check if user has sufficient resources for trade
+function hasSufficientResources(inventory, tradeData, tradeInput) {
+    const sufficient = inventory[tradeInput.resource] >= (tradeData[tradeInput.resource] + tradeInput.amount);
+    console.log(`Checking sufficient resources for ${tradeInput.resource}:`, sufficient);
+    return sufficient;
+}
+
+// Update trade data based on user input
 function updateTradeData(tradeData, userId, resource, amount) {
-    if (!tradeData[userId][resource]) {
-        tradeData[userId][resource] = 0;
-    }
     tradeData[userId][resource] += amount;
+    console.log(`Updated trade data for ${userId}:`, tradeData[userId]);
+}
+
+// Finalize trade
+let tradeFinalized = false; // Flag para controlar que solo se finalice una vez
+
+async function finalizeTrade(interaction, tradeData, authorId, targetId) {
+    if (tradeFinalized) {
+        console.log('Trade already finalized. Skipping execution.');
+        return; // Si ya fue finalizado, no ejecutamos la función de nuevo
+    }
+
+    console.log(`Finalizing trade between ${authorId} and ${targetId}`);
+    
+    const completed = createCompletedTradeEmbed(authorId, targetId);
+
+    try {
+        // Actualizar el mensaje para confirmar la finalización del trade
+        await interaction.update({ embeds: [completed], components: [] });
+
+        // Obtener inventarios de ambos usuarios
+        const authorInventory = await fetchInventory(authorId);
+        const targetInventory = await fetchInventory(targetId);
+
+        // Verificar si ambos usuarios tienen suficientes recursos
+        if (!hasSufficientResources(authorInventory, tradeData[authorId]) || !hasSufficientResources(targetInventory, tradeData[targetId])) {
+            throw new Error('One or both users do not have sufficient resources for the trade.');
+        }
+
+        // Actualizar inventarios (restar items de los inventarios de ambos)
+        await updateInventory(authorId, subtractItemsFromInventory(authorInventory, tradeData[authorId]));
+        await updateInventory(targetId, subtractItemsFromInventory(targetInventory, tradeData[targetId]));
+
+        // Añadir los items tradeados al inventario de cada uno
+        await addTradeItems(authorId, tradeData[targetId]);
+        await addTradeItems(targetId, tradeData[authorId]);
+
+        console.log('Trade finalized successfully.');
+        
+        // Establecer la bandera de finalización
+        tradeFinalized = true;
+
+    } catch (error) {
+        console.error('Error finalizing trade:', error);
+        await interaction.followUp({ content: '⚠️ There was an error finalizing the trade. Please try again later.' });
+    }
+}
+
+
+// Function to add trade items to the inventory
+async function addTradeItems(userId, tradeItems) {
+    const inventory = await fetchInventory(userId);
+    console.log(`Current inventory for ${userId}:`, inventory);
+    for (const resource in tradeItems) {
+        inventory[resource] += tradeItems[resource];
+        console.log(`Adding ${tradeItems[resource]} ${resource} to ${userId}'s inventory.`);
+    }
+    await updateInventory(userId, inventory);
+}
+
+// Function to subtract items from inventory
+function subtractItemsFromInventory(inventory, tradeData) {
+    for (const resource in tradeData) {
+        inventory[resource] -= tradeData[resource];
+        console.log(`Subtracting ${tradeData[resource]} ${resource} from inventory.`);
+    }
+    return inventory;
+}
+
+// Function to create completed trade embed
+function createCompletedTradeEmbed(authorUsername, targetUsername) {
+    return new EmbedBuilder()
+        .setColor('#32CD32') // Green color for completed trade
+        .setTitle('✅ Trade Completed')
+        .setDescription(`The trade between ${authorUsername} and ${targetUsername} has been successfully completed!`)
+        .setFooter({ text: 'Thank you for trading!' })
+        .setTimestamp();
+}
+
+// Function to handle confirm/cancel trade buttons
+async function handleTradeConfirmation(interaction, tradeData, message, targetUser) {
+    const filter = i => [message.author.id, targetUser.id].includes(i.user.id);
+    const confirmationCollector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+
+    confirmationCollector.on('collect', async (i) => {
+        console.log(`Confirmation interaction collected from ${i.user.username}: ${i.customId}`);
+
+        if (i.customId === 'confirmTrade') {
+            tradeData[i.user.id].confirmed = true; // Mark as confirmed
+            console.log(`Trade confirmed by ${i.user.username}. Current trade data:`, tradeData);
+
+            // Check if both have confirmed
+            if (tradeData[message.author.id].confirmed && tradeData[targetUser.id].confirmed) {
+                const completedEmbed = createCompletedTradeEmbed(message.author.username, targetUser.username);
+                await i.update({ embeds: [completedEmbed], components: [] }); // Update embed to indicate trade completion
+                confirmationCollector.stop(); // Stop the collector
+                console.log(`Trade completed between ${message.author.username} and ${targetUser.username}`);
+            } else {
+                await i.reply({ content: `${i.user.username} has confirmed the trade.`, ephemeral: true });
+            }
+        } else if (i.customId === 'cancelTrade') {
+            console.log(`${i.user.username} has canceled the trade.`);
+            await i.update({ content: `${i.user.username} has canceled the trade.`, components: [] });
+            confirmationCollector.stop();
+            message.channel.send('Trade canceled.');
+        }
+    });
 }
