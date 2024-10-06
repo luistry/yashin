@@ -16,7 +16,7 @@ module.exports = {
 
         try {
             const inventory = await fetchInventory(userId);
-            let cards = inventory.cards || []; // Use let to allow reassignment after filtering
+            let cards = inventory.cards || []; 
 
             if (!Array.isArray(cards) || cards.length === 0) {
                 return message.channel.send(`${displayName} doesn't have any cards in their collection.`);
@@ -25,28 +25,24 @@ module.exports = {
             // Lógica de filtrado
             const searchQuery = message.content.slice(2 + (providedId ? providedId.length : 0)).trim();
             if (searchQuery) {
-                // Filtrar por nombre de personaje
                 const characterMatch = searchQuery.match(/name:\s*([\w\s]+)/i);
                 if (characterMatch) {
                     const characterName = characterMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.name && card.name.toLowerCase().includes(characterName));
                 }
 
-                // Filtrar por serie
                 const seriesMatch = searchQuery.match(/series:\s*([\w\s]+)/i);
                 if (seriesMatch) {
                     const seriesName = seriesMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.series && card.series.toLowerCase().includes(seriesName));
                 }
 
-                // Filtrar por etiqueta (tag)
                 const tagMatch = searchQuery.match(/t:\s*([\w\s]+)/i);
                 if (tagMatch) {
                     const tagName = tagMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.tagName && card.tagName.toLowerCase().includes(tagName));
                 }
 
-                // Filtrar por __v (version) de menor a mayor
                 const orderMatch = searchQuery.match(/o:p/i);
                 if (orderMatch) {
                     cards.sort((a, b) => (a.__v || 0) - (b.__v || 0));
@@ -122,12 +118,11 @@ module.exports = {
                 }
 
                 const filter = i => i.user.id === message.author.id;
-                const collector = sentMessage.createMessageComponentCollector({ filter });
+
+                const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 }); // 60 segundos de timeout
 
                 collector.on('collect', async i => {
                     try {
-                        await i.deferUpdate();
-
                         if (i.customId === 'first') {
                             currentPage = 0;
                         } else if (i.customId === 'previous' && currentPage > 0) {
@@ -138,7 +133,9 @@ module.exports = {
                             currentPage = Math.ceil(cards.length / itemsPerPage) - 1;
                         }
 
-                        await sendPage(currentPage);
+                        // Usa update en lugar de deferUpdate para evitar errores de duplicación
+                        await i.update({ embeds: [generateEmbed(cards.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage))], components: [row] });
+
                     } catch (error) {
                         if (error.code === 10062) {
                             console.warn('Ignoring unknown interaction error');
@@ -146,6 +143,34 @@ module.exports = {
                             console.error('Error handling button interaction:', error);
                         }
                     }
+                });
+
+                collector.on('end', () => {
+                    // Desactiva los botones cuando termina el colector
+                    const disabledRow = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('first')
+                                .setLabel('⏮️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('previous')
+                                .setLabel('←')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('next')
+                                .setLabel('→')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('last')
+                                .setLabel('⏭️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true)
+                        );
+                    sentMessage.edit({ components: [disabledRow] });
                 });
             };
 
