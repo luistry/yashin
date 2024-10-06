@@ -7,7 +7,13 @@ module.exports = {
     async run(message) {
         const mentionedUser = message.mentions.users.first();
         const providedId = message.content.split(' ')[1];
-        const userId = mentionedUser ? mentionedUser.id : providedId || message.author.id;
+
+        // Correctly assign userId
+        const userId = mentionedUser 
+            ? mentionedUser.id 
+            : providedId && providedId.match(/^\d{17,19}$/) // Validate if providedId is a valid user ID
+                ? providedId 
+                : message.author.id;
 
         const displayName = mentionedUser 
             ? mentionedUser.username 
@@ -15,37 +21,54 @@ module.exports = {
             || message.author.username;
 
         try {
-            const inventory = await fetchInventory(userId);
-            let cards = inventory.cards || []; 
+            console.log(`Fetching inventory for user ID: ${userId}`);
 
-            if (!Array.isArray(cards) || cards.length === 0) {
+            // Fetch inventory, if fetchInventory returns null, assign an empty object
+            const inventory = await fetchInventory(userId);
+            console.log('Inventory fetched:', inventory);
+
+            // Check if there are cards
+            if (!inventory || !Array.isArray(inventory.cards) || inventory.cards.length === 0) {
                 return message.channel.send(`${displayName} doesn't have any cards in their collection.`);
             }
 
-            // Lógica de filtrado
-            const searchQuery = message.content.slice(2 + (providedId ? providedId.length : 0)).trim();
+            let cards = inventory.cards;
+
+            // Filter logic
+            const contentAfterCommand = message.content.slice(message.content.indexOf(' ') + 1).trim(); 
+
+            // Adjust searchQuery to exclude the ID if necessary
+            const searchQuery = mentionedUser || (providedId && providedId.match(/^\d{17,19}$/)) 
+                ? contentAfterCommand.replace(providedId, '').trim() // Remove ID from searchQuery if it exists
+                : contentAfterCommand;
+
+            // Apply filters if there's a search query
             if (searchQuery) {
+                // Filter by character name
                 const characterMatch = searchQuery.match(/name:\s*([\w\s]+)/i);
                 if (characterMatch) {
                     const characterName = characterMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.name && card.name.toLowerCase().includes(characterName));
                 }
 
+                // Filter by series
                 const seriesMatch = searchQuery.match(/series:\s*([\w\s]+)/i);
                 if (seriesMatch) {
                     const seriesName = seriesMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.series && card.series.toLowerCase().includes(seriesName));
                 }
 
+                // Filter by tag
                 const tagMatch = searchQuery.match(/t:\s*([\w\s]+)/i);
                 if (tagMatch) {
                     const tagName = tagMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.tagName && card.tagName.toLowerCase().includes(tagName));
                 }
 
+                // Filter by __v (version) ascending
                 const orderMatch = searchQuery.match(/o:p/i);
                 if (orderMatch) {
-                    cards.sort((a, b) => (a.__v || 0) - (b.__v || 0));
+                    cards = cards.sort((a, b) => (a.__v || 0) - (b.__v || 0));
                 }
             }
 
@@ -118,11 +141,12 @@ module.exports = {
                 }
 
                 const filter = i => i.user.id === message.author.id;
-
-                const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 }); // 60 segundos de timeout
+                const collector = sentMessage.createMessageComponentCollector({ filter });
 
                 collector.on('collect', async i => {
                     try {
+                        await i.deferUpdate();
+
                         if (i.customId === 'first') {
                             currentPage = 0;
                         } else if (i.customId === 'previous' && currentPage > 0) {
@@ -133,9 +157,7 @@ module.exports = {
                             currentPage = Math.ceil(cards.length / itemsPerPage) - 1;
                         }
 
-                        // Usa update en lugar de deferUpdate para evitar errores de duplicación
-                        await i.update({ embeds: [generateEmbed(cards.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage))], components: [row] });
-
+                        await sendPage(currentPage);
                     } catch (error) {
                         if (error.code === 10062) {
                             console.warn('Ignoring unknown interaction error');
@@ -143,34 +165,6 @@ module.exports = {
                             console.error('Error handling button interaction:', error);
                         }
                     }
-                });
-
-                collector.on('end', () => {
-                    // Desactiva los botones cuando termina el colector
-                    const disabledRow = new ActionRowBuilder()
-                        .addComponents(
-                            new ButtonBuilder()
-                                .setCustomId('first')
-                                .setLabel('⏮️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(true),
-                            new ButtonBuilder()
-                                .setCustomId('previous')
-                                .setLabel('←')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(true),
-                            new ButtonBuilder()
-                                .setCustomId('next')
-                                .setLabel('→')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(true),
-                            new ButtonBuilder()
-                                .setCustomId('last')
-                                .setLabel('⏭️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(true)
-                        );
-                    sentMessage.edit({ components: [disabledRow] });
                 });
             };
 

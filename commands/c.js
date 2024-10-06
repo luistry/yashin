@@ -7,7 +7,13 @@ module.exports = {
     async run(message) {
         const mentionedUser = message.mentions.users.first();
         const providedId = message.content.split(' ')[1];
-        const userId = mentionedUser ? mentionedUser.id : providedId || message.author.id;
+
+        // Correctly assign userId
+        const userId = mentionedUser 
+            ? mentionedUser.id 
+            : providedId && providedId.match(/^\d{17,19}$/) // Validate if providedId is a valid user ID
+                ? providedId 
+                : message.author.id;
 
         const displayName = mentionedUser 
             ? mentionedUser.username 
@@ -15,41 +21,54 @@ module.exports = {
             || message.author.username;
 
         try {
-            const inventory = await fetchInventory(userId);
-            let cards = inventory.cards || []; // Use let to allow reassignment after filtering
+            console.log(`Fetching inventory for user ID: ${userId}`);
 
-            if (!Array.isArray(cards) || cards.length === 0) {
+            // Fetch inventory, if fetchInventory returns null, assign an empty object
+            const inventory = await fetchInventory(userId);
+            console.log('Inventory fetched:', inventory);
+
+            // Check if there are cards
+            if (!inventory || !Array.isArray(inventory.cards) || inventory.cards.length === 0) {
                 return message.channel.send(`${displayName} doesn't have any cards in their collection.`);
             }
 
-            // Lógica de filtrado
-            const searchQuery = message.content.slice(2 + (providedId ? providedId.length : 0)).trim();
+            let cards = inventory.cards;
+
+            // Filter logic
+            const contentAfterCommand = message.content.slice(message.content.indexOf(' ') + 1).trim(); 
+
+            // Adjust searchQuery to exclude the ID if necessary
+            const searchQuery = mentionedUser || (providedId && providedId.match(/^\d{17,19}$/)) 
+                ? contentAfterCommand.replace(providedId, '').trim() // Remove ID from searchQuery if it exists
+                : contentAfterCommand;
+
+            // Apply filters if there's a search query
             if (searchQuery) {
-                // Filtrar por nombre de personaje
+                // Filter by character name
                 const characterMatch = searchQuery.match(/name:\s*([\w\s]+)/i);
                 if (characterMatch) {
                     const characterName = characterMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.name && card.name.toLowerCase().includes(characterName));
                 }
 
-                // Filtrar por serie
+                // Filter by series
                 const seriesMatch = searchQuery.match(/series:\s*([\w\s]+)/i);
                 if (seriesMatch) {
                     const seriesName = seriesMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.series && card.series.toLowerCase().includes(seriesName));
                 }
 
-                // Filtrar por etiqueta (tag)
+                // Filter by tag
                 const tagMatch = searchQuery.match(/t:\s*([\w\s]+)/i);
                 if (tagMatch) {
                     const tagName = tagMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.tagName && card.tagName.toLowerCase().includes(tagName));
                 }
 
-                // Filtrar por __v (version) de menor a mayor
+                // Filter by __v (version) ascending
                 const orderMatch = searchQuery.match(/o:p/i);
                 if (orderMatch) {
-                    cards.sort((a, b) => (a.__v || 0) - (b.__v || 0));
+                    cards = cards.sort((a, b) => (a.__v || 0) - (b.__v || 0));
                 }
             }
 
