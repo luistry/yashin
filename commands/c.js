@@ -146,7 +146,7 @@ module.exports = {
                 collector.on('collect', async i => {
                     try {
                         await i.deferUpdate();
-
+                        
                         if (i.customId === 'first') {
                             currentPage = 0;
                         } else if (i.customId === 'previous' && currentPage > 0) {
@@ -159,7 +159,10 @@ module.exports = {
 
                         await sendPage(currentPage);
                     } catch (error) {
-                        if (error.code === 10062) {
+                        // Handle interaction acknowledgment error
+                        if (error.code === 40060) {
+                            console.warn('Ignoring interaction acknowledgment error');
+                        } else if (error.code === 10062) {
                             console.warn('Ignoring unknown interaction error');
                         } else {
                             console.error('Error handling button interaction:', error);
