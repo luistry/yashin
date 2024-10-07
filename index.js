@@ -1,14 +1,4 @@
 
-// Manejo de errores globales
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection:', reason);
-    // Puedes ignorar ciertos errores
-    if (reason.code === 10062) {
-        console.warn('Ignoring unknown interaction error');
-        return;
-    }
-    // Maneja otros errores críticos
-});
 
 // Aquí comienza el resto de tu código
 const { Client, Events,Options  } = require("discord.js");
