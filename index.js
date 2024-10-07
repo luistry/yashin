@@ -10,15 +10,6 @@ process.on('unhandledRejection', (reason, promise) => {
     // Maneja otros errores críticos
 });
 
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-    // Ignora errores de interacción desconocida
-    if (error.code === 10062) {
-        console.warn('Ignoring unknown interaction error');
-        return;
-    }
-});
-
 // Aquí comienza el resto de tu código
 const { Client, Events,Options  } = require("discord.js");
 const mongoose = require('mongoose');
