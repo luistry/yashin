@@ -9,8 +9,6 @@ const client = new Client({
     intents: 53608447,
     makeCache: Options.cacheWithLimits({
         MessageManager: 50, // Limita el caché de mensajes a 50
-        UserManager: 100, // Limita el caché de usuarios a 100
-        GuildMemberManager: 100, // Limita el caché de miembros a 100
     }),
     messageCacheLifetime: 60, // Duración de los mensajes en caché en segundos
     messageSweepInterval: 120 // Intervalo para limpiar el caché en segundos
