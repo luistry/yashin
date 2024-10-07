@@ -707,13 +707,13 @@ async function transferFrame(fromInventory, toInventory, frameName, amount) {
 
 async function addAnimeCharacter(name, series, img_url) {
     try {
-        // Busca el personaje con el _id más alto
-        const highestIdCharacter = await AnimeCharacter.findOne().sort({ _id: -1 }).exec();
+        // Busca el personaje con el _id más alto que sea mayor o igual a 15500
+        const highestIdCharacter = await AnimeCharacter.findOne({ _id: { $gte: 15500 } }).sort({ _id: -1 }).exec();
 
-        // Si no hay personajes en la base de datos, asigna el _id como 1, si no, suma 1 al _id más alto
-        const newId = highestIdCharacter ? highestIdCharacter._id + 1 : 1;
+        // Si no hay personajes con _id >= 15500, asigna el _id como 15500, si no, suma 1 al _id más alto
+        const newId = highestIdCharacter ? highestIdCharacter._id + 1 : 15500;
 
-        // Crea un nuevo personaje con el _id incrementado
+        // Crea un nuevo personaje con el _id correcto
         const newCharacter = new AnimeCharacter({
             _id: newId,
             name: name,
@@ -731,6 +731,7 @@ async function addAnimeCharacter(name, series, img_url) {
         console.error('Error al añadir el personaje de anime:', error);
     }
 }
+
 async function editAnimeCharacterImage(name, series, new_img_url) {
     try {
         // Search for the character by name and series

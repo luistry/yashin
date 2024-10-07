@@ -14,16 +14,15 @@ module.exports = {
         }
 
         // Create the email content
-        const mailName = 'maintenance';
+        const mailName = 'Gift for data lost 1/4';
         const mailDescription = `
       Moshi moshi! Yashin here!
 
-We also want to apologize for the extended maintenance over the past two days.
- We’ve been working hard to improve the game and ensure a better experience for everyone. 
-Thank you for your patience and understanding during this time.
-            
-            **Your Rewards:**
-            - 5 shines ✨ 
+
+We deeply regret to inform you that during an update, the creator made an error that resulted in the loss of card data.
+We sincerely apologize for this unfortunate incident and appreciate your understanding during this difficult time.
+          **Your Rewards:**
+            - 20 shines ✨ 
         `;
 
         // Fetch all user inventories
@@ -50,7 +49,7 @@ Thank you for your patience and understanding during this time.
                 description: mailDescription,
                 Readed: false, // Mark as unread
                 rewards: {
-                   shines: 5
+                   shines: 20
                 }
             };
 

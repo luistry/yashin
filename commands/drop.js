@@ -609,7 +609,10 @@ module.exports = {
                         morph_apply: "",
                         last_morph: "",
                         color_letter_name: "",
+                        last_color_letter_name: "",
+                        last_color_letter_series: "",
                         color_letter_series: "",
+                        last_color_letter: "",
                         color_letter: ""
                     });
 

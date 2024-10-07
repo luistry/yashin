@@ -3,18 +3,18 @@ const { fetchInventory, updateInventory } = require('./database/database');
 
 // Definir ítems para Box_title
 const boxTitles = [
-    { name: 'The Honored One', image: 'https://titles-yashin.b-cdn.net/honored%20one%20title.png', type: 'title' },
-    { name: 'Hokage', image: 'https://titles-yashin.b-cdn.net/title%20naruto.png', type: 'title' },
-    { name: 'King of Curses', image: 'https://titles-yashin.b-cdn.net/sukuna%20title.png', type: 'title' },
+    { name: 'The Honored One', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/honored%20one%20title.png', type: 'title' },
+    { name: 'Hokage', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/title%20naruto.png', type: 'title' },
+    { name: 'King of Curses', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/sukuna%20title.png', type: 'title' },
     { name: 'The Hero #1', image: 'https://titles-yashin.b-cdn.net/hero%20%231%20title.png', type: 'title' },
-    { name: 'White Demon', image: 'https://titles-yashin.b-cdn.net/white%20demon%20title.png', type: 'title' },
-    { name: 'King of Pirates', image: 'https://titles-yashin.b-cdn.net/king%20of%20pirates%20tititle.png', type: 'title' },
-    { name: 'Soul Reaper', image: 'https://titles-yashin.b-cdn.net/soul%20reaper%20title.png', type: 'title' },
-    { name: 'Vasto Lorde', image: 'https://titles-yashin.b-cdn.net/vasto%20lorde%20title.png', type: 'title' },
-    { name: 'Pillar Of Love', image: 'https://titles-yashin.b-cdn.net/title%20mitsuri.png', type: 'title' },
-    { name: 'Demon Slayer', image: 'https://titles-yashin.b-cdn.net/demon%20slayer%20title.png', type: 'title' },
-    { name: 'The Traveler', image: 'https://titles-yashin.b-cdn.net/traveler%20title.png', type: 'title' },
-    { name: 'The God Of Contracts', image: 'https://titles-yashin.b-cdn.net/zhongli%20title.png', type: 'title' }
+    { name: 'White Demon', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/white%20demon%20title.png', type: 'title' },
+    { name: 'King of Pirates', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/king%20of%20pirates%20tititle.png', type: 'title' },
+    { name: 'Soul Reaper', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/soul%20reaper%20title.png', type: 'title' },
+    { name: 'Vasto Lorde', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/vasto%20lorde%20title.png', type: 'title' },
+    { name: 'Pillar Of Love', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/title%20mitsuri.png', type: 'title' },
+    { name: 'Demon Slayer', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/demon%20slayer%20title.png', type: 'title' },
+    { name: 'The Traveler', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/traveler%20title.png', type: 'title' },
+    { name: 'The God Of Contracts', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/titles/zhongli%20title.png', type: 'title' }
 ];
 
 // Definir ítems para Box_banner
