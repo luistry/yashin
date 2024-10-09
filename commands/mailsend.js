@@ -14,7 +14,7 @@ module.exports = {
         }
 
         // Create the email content
-        const mailName = 'Gift for data lost 2/4';
+        const mailName = 'Gift for data lost 3/4';
         const mailDescription = `
       Moshi moshi! Yashin here!
 

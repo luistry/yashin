@@ -1,6 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { fetchInventory } = require('./database/database'); // Adjust the path accordingly
-//const { generateGlows } = require('./utils/glows-help'); // Adjust the path accordingly
 
 module.exports = {
     name: 'use',
@@ -62,15 +61,6 @@ module.exports = {
                 return await message.channel.send(`"${args.join(' ')}" is not a valid item.`); // Show original name
             }
 
-         //   if (itemName === 'glow') {
-                // Handle glow item
-              //  const glowResult = await generateGlows(message.author.id);
-             //   if (typeof glowResult === 'string') {
-            //        return await message.channel.send(glowResult);
-            //    }
-         //       return await message.channel.send({ embeds: [glowResult] });
-          //  }
-
             const itemArray = inventory[item.array];
             if (!itemArray || itemArray.length === 0) {
                 return await message.channel.send(`You don't have any "${args.join(' ')}" in your inventory.`);
@@ -113,16 +103,18 @@ module.exports = {
                     }
 
                     // Add the buff to the Buffs array
-                    let buff = Buffs.find(b => b.name.toLowerCase() === itemName);
+                    let buff = Buffs.find(b => b.name.toLowerCase() === item.displayName.toLowerCase());
                     if (!buff) {
                         Buffs.push({
                             name: item.displayName, // Use display name here
                             description: item.description,
                             days_remaining: 30,
+                            applied_on: new Date(), // Add applied_on property
                             active: true
                         });
                     } else {
                         buff.days_remaining += 30; // Add 30 days to existing duration
+                        buff.applied_on = new Date(); // Update applied_on date
                     }
 
                     // Save the updated inventory

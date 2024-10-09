@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js'); 
 const { fetchInventory, updateInventory } = require('./database/database');
 const Canvas = require('canvas');
 const { createCanvas, loadImage } = require('canvas');
@@ -29,9 +29,14 @@ module.exports = {
             const giverInventoryBackup = JSON.parse(JSON.stringify(giverInventory));
 
             // Check if card exists in inventory
-            const card = giverInventory.cards.find(c => c.code === cardCode);
+            let card = giverInventory.cards.find(c => c.code === cardCode);
             if (!card) {
                 return message.channel.send('Card not found in your inventory. Please check the code and try again.');
+            }
+
+            // Remove 'tagName' property if it exists
+            if (card.hasOwnProperty('tagName')) {
+                delete card.tagName;
             }
 
             // Preload the necessary font for the card canvas
@@ -70,17 +75,18 @@ module.exports = {
                 context.font = 'bold 22px Arial';
                 context.fillStyle = '#000000';
                 context.textAlign = 'center';
-                context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 100);
 
-                // Add character's name
+                // Draw the card number (__v) a little lower
+                context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 90);
+
+                // Add character's name a little lower
                 context.font = 'bold 30px Arial';
                 context.fillStyle = '#000000';
-                context.textAlign = 'center';
                 let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
-                const nameY = cardHeight - 70;
+                const nameY = cardHeight - 60;
                 context.fillText(characterName, cardWidth / 2, nameY);
 
-                // Add series text
+                // Add series text a little lower
                 context.font = '24px Arial';
                 context.fillStyle = '#000000';
                 let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;

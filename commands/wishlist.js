@@ -1,66 +1,106 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { fetchInventory, AnimeCharacter } = require('./database/database');
 
 module.exports = {
     name: 'wishlist',
-    description: 'Displays the list of characters in your wishlist with pagination.',
+    description: 'Displays the wishlist of a user and compares it with the inventory of another.',
     run: async (message) => {
         try {
-            // Get the user's inventory
-            const userInventory = await fetchInventory(message.author.id);
+            const targetUser = message.mentions.users.first() || message.author;
+            const targetInventory = await fetchInventory(targetUser.id);
 
-            // If the user has no wishlist or it's empty
-            if (!userInventory || !userInventory.wishlist || userInventory.wishlist.length === 0) {
-                return message.channel.send('Your wishlist is empty.');
+            if (!targetInventory || !targetInventory.wishlist || targetInventory.wishlist.length === 0) {
+                return message.channel.send(`${targetUser.username}'s wishlist is empty.`);
             }
 
-            const wishlistLimit = userInventory.limited || 10; // Default to 10 if not set
-            const remainingSlots = wishlistLimit - userInventory.wishlist.length;
+            const userInventory = await fetchInventory(message.author.id);
+
+            const wishlistLimit = targetInventory.limited || 10;
+            const remainingSlots = wishlistLimit - targetInventory.wishlist.length;
             const itemsPerPage = 10;
             let currentPage = 0;
 
-            // Fetch and format the wishlist items
-            const wishlistItems = await Promise.all(userInventory.wishlist.map(async item => {
+            const wishlistItems = await Promise.all(targetInventory.wishlist.map(async item => {
                 const { name, series } = item;
                 const character = await AnimeCharacter.findOne({ name, series });
                 const wishlistCount = character ? character.wishlist : 'Not specified';
-                return `❤️ ${wishlistCount} • ${name.padEnd(20, ' ')} - ${series.padEnd(15, ' ')}`;
+                return { name, series, wishlistCount };
             }));
 
-            // Helper function to generate the embed for a specific page
+            const matchingItems = wishlistItems
+                .map(item => {
+                    const matchingCard = userInventory.cards.find(card =>
+                        card.name.toLowerCase() === item.name.toLowerCase() &&
+                        card.series.toLowerCase() === item.series.toLowerCase()
+                    );
+                    if (matchingCard) {
+                        return {
+                            name: matchingCard.name,
+                            series: matchingCard.series,
+                            code: matchingCard.code
+                        };
+                    }
+                    return null;
+                })
+                .filter(item => item !== null);
+
             const generateEmbed = (page) => {
                 const start = page * itemsPerPage;
                 const end = start + itemsPerPage;
                 const currentItems = wishlistItems.slice(start, end);
 
-                const description = currentItems.join('\n');
+                const description = currentItems.map(item => `❤️ ${item.wishlistCount} • ${item.name} - ${item.series}`).join('\n');
                 const embedDescription = description.length > 2048 ? description.slice(0, 2048) + '...' : description;
 
                 return new EmbedBuilder()
                     .setColor('#0099ff')
-                    .setTitle(`Your Wishlist (Page ${page + 1} of ${Math.ceil(wishlistItems.length / itemsPerPage)})`)
+                    .setTitle(`${targetUser.username}'s Wishlist (Page ${page + 1} of ${Math.ceil(wishlistItems.length / itemsPerPage)})`)
                     .setDescription(`\`\`\`${embedDescription}\`\`\``)
                     .setFooter({
-                        text: `Wishlist slots: ${userInventory.wishlist.length}/${wishlistLimit} (${remainingSlots} slots remaining)`,
-                        iconURL: message.author.displayAvatarURL(),
+                        text: `Wishlist slots: ${targetInventory.wishlist.length}/${wishlistLimit} (${remainingSlots} slots remaining)`,
+                        iconURL: targetUser.displayAvatarURL(),
                     })
                     .setTimestamp();
             };
 
-            // Send the initial embed message
-            const embedMessage = await message.channel.send({ embeds: [generateEmbed(currentPage)] });
+            const generateMatchingMenu = () => {
+                const menuOptions = matchingItems.map(item =>
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel(`${item.name} - ${item.series}`)
+                        .setValue(`${item.name}_${item.series}`)
+                );
 
-            // React with pagination controls
+                const selectMenu = new StringSelectMenuBuilder()
+                    .setCustomId('select_matching')
+                    .setPlaceholder('Select a matching character')
+                    .addOptions(menuOptions);
+
+                return new ActionRowBuilder().addComponents(selectMenu);
+            };
+
+            const generateCopyButton = () => {
+                const button = new ButtonBuilder()
+                    .setCustomId('copy_codes')
+                    .setLabel('Copy Codes')
+                    .setStyle(ButtonStyle.Primary);
+
+                return new ActionRowBuilder().addComponents(button);
+            };
+
+            const embedMessage = await message.channel.send({
+                embeds: [generateEmbed(currentPage)],
+                components: matchingItems.length > 0 ? [generateMatchingMenu(), generateCopyButton()] : []
+            });
+
             await embedMessage.react('◀️');
             await embedMessage.react('▶️');
 
-            // Create a filter to only allow the message author to control the reactions
-            const filter = (reaction, user) => ['◀️', '▶️'].includes(reaction.emoji.name) && user.id === message.author.id;
+            const filter = (interaction) => interaction.user.id === message.author.id;
 
-            // Create a reaction collector to handle pagination
-            const collector = embedMessage.createReactionCollector({ filter, time: 60000 });
+            const reactionCollector = embedMessage.createReactionCollector({ filter, time: 60000 });
+            const componentCollector = embedMessage.createMessageComponentCollector({ filter, time: 60000 });
 
-            collector.on('collect', async (reaction) => {
+            reactionCollector.on('collect', async (reaction) => {
                 if (reaction.emoji.name === '▶️') {
                     if (currentPage < Math.ceil(wishlistItems.length / itemsPerPage) - 1) {
                         currentPage++;
@@ -72,18 +112,41 @@ module.exports = {
                         await embedMessage.edit({ embeds: [generateEmbed(currentPage)] });
                     }
                 }
-
-                // Remove the user's reaction to avoid clutter
                 await reaction.users.remove(message.author.id);
             });
 
-            collector.on('end', () => {
-                embedMessage.reactions.removeAll(); // Remove reactions when the collector ends
+            componentCollector.on('collect', async interaction => {
+                if (interaction.customId === 'select_matching') {
+                    const [name, series] = interaction.values[0].split('_');
+                    const selectedCard = matchingItems.find(item => item.name === name && item.series === series);
+                    await interaction.reply({ content: `You selected **${selectedCard.name}** from **${selectedCard.series}** with code \`${selectedCard.code}\`.`, ephemeral: true });
+                } else if (interaction.customId === 'copy_codes') {
+                    const codes = matchingItems.map(item => `${item.name} - ${item.series} (Code: ${item.code})`).join('\n');
+                    await interaction.reply({ content: `Copied codes:\n\`\`\`${codes}\`\`\``, ephemeral: false });
+
+                    // Disable the button after it has been pressed once
+                    const updatedComponents = embedMessage.components.map(row => {
+                        return new ActionRowBuilder().addComponents(
+                            row.components.map(component => {
+                                if (component.customId === 'copy_codes') {
+                                    return ButtonBuilder.from(component).setDisabled(true);
+                                }
+                                return component;
+                            })
+                        );
+                    });
+
+                    await embedMessage.edit({ components: updatedComponents });
+                }
+            });
+
+            reactionCollector.on('end', () => {
+                embedMessage.reactions.removeAll();
             });
 
         } catch (error) {
             console.error('Error displaying wishlist:', error);
-            await message.channel.send('There was an error displaying your wishlist. Please try again later.');
+            await message.channel.send('There was an error displaying the wishlist. Please try again later.');
         }
     },
 };

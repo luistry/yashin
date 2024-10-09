@@ -1,4 +1,4 @@
-const { fetchInventory, Frame, updateInventory, addFrameToInventory } = require('./database/database'); 
+const { fetchInventory, Frame, updateInventory, addFrameToInventory } = require('./database/database');
 const { ActionRowBuilder, ButtonBuilder, EmbedBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
@@ -35,7 +35,7 @@ module.exports = {
         const frame = frames.find(f => f.name.toLowerCase() === itemName);
 
         if (frame) {
-            const frameCost = 800; // Costo fijo por cada frame
+            const frameCost = 800; // Fixed cost per frame
             const totalCost = frameCost * quantity;
             const currencyEmoji = ':crescent_moon:';
 
@@ -94,19 +94,19 @@ module.exports = {
                     }
 
                     try {
-                        const result = await addFrameToInventory(userId, frame.name, quantity);
+                        await addFrameToInventory(userId, frame.name, quantity);
 
                         // Deduct the cost from the user's moons
                         inventory.moons = currentMoons - totalCost;
-
                         await inventory.save();
 
+                        // Create and send the success embed
                         const successEmbed = new EmbedBuilder()
-                            .setColor('#00FF00') // Cambia el color a verde en caso de éxito
+                            .setColor('#00FF00') // Green color for success
                             .setTitle('Purchase Successful!')
                             .setDescription(`You have successfully purchased **${quantity} ${frame.name}(s)**.`);
 
-                        await i.reply({ embeds: [successEmbed] });
+                        await i.update({ embeds: [successEmbed], components: [] }); // Update the message with success embed
                     } catch (err) {
                         console.error('Error updating inventory:', err);
                         await i.reply('There was an error processing your purchase.');
@@ -136,7 +136,7 @@ module.exports = {
                 });
             });
         } else if (items[itemName]) {
-            // Lógica para otros artículos
+            // Logic for other items
             const item = items[itemName];
             const totalCost = item.cost * quantity;
             const currencyEmoji = item.currency === 'shines' ? '✨' : item.currency === 'moons' ? ':crescent_moon:' : '💰';
@@ -204,6 +204,7 @@ module.exports = {
                         }
                         inventory[item.type] = Number(inventory[item.type]) + quantity;
 
+                        // Deduct from the user's currency based on the item type
                         if (item.currency === 'shines') {
                             inventory.shines = Number(inventory.shines) - totalCost;
                         } else if (item.currency === 'moons') {
@@ -215,11 +216,11 @@ module.exports = {
                         await updateInventory(userId, inventory);
 
                         const successEmbed = new EmbedBuilder()
-                            .setColor('#00FF00') // Cambia el color a verde en caso de éxito
+                            .setColor('#00FF00') // Green color for success
                             .setTitle('Purchase Successful!')
                             .setDescription(`You have successfully purchased **${quantity} ${itemName}(s)**.`);
 
-                        await i.reply({ embeds: [successEmbed] });
+                        await i.update({ embeds: [successEmbed], components: [] }); // Update the message with success embed
                     } catch (err) {
                         console.error('Error updating inventory:', err);
                         await i.reply('There was an error processing your purchase.');
@@ -249,7 +250,7 @@ module.exports = {
                 });
             });
         } else {
-            message.channel.send('Item not found.');
+            return message.channel.send('Item not found in the shop. Please check your spelling and try again.');
         }
     }
 };
