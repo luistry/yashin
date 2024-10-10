@@ -1,33 +1,33 @@
-
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
-    // Ignora errores de interacción desconocida
+    // Ignore unknown interaction errors
     if (error.code === 10062) {
         console.warn('Ignoring unknown interaction error');
         return;
     }
 });
 
-// Aquí comienza el resto de tu código
-const { Client, Events,Options  } = require("discord.js");
+// Here begins the rest of your code
+const fs = require('fs');
+const { Client, Events, Options } = require("discord.js");
 const mongoose = require('mongoose');
 const checkUserMiddleware = require('./commands/utils/middlewarecheckregister');
 
 const client = new Client({
     intents: 53608447,
     makeCache: Options.cacheWithLimits({
-        MessageManager: 50, // Limita el caché de mensajes a 50
+        MessageManager: 50, // Limits message cache to 50
     }),
-    messageCacheLifetime: 60, // Duración de los mensajes en caché en segundos
-    messageSweepInterval: 120 // Intervalo para limpiar el caché en segundos
+    messageCacheLifetime: 60, // Duration of message cache in seconds
+    messageSweepInterval: 120 // Interval for cleaning cache in seconds
 });
 
 const prefix = "y!";
 const allowedUserId = '346799501878755342';
-let maintenanceMode = false; // Variable para el modo de mantenimiento
-// Command queue
+let maintenanceMode = false; // Variable for maintenance mode
 const commandQueue = [];
 let isProcessingQueue = false;
+
 // MongoDB connection
 const mongoURI = 'mongodb+srv://Yashin:sheismylovemuch@Yashin.ronvl.mongodb.net/?retryWrites=true&w=majority';
 
@@ -42,18 +42,27 @@ const connectDB = async () => {
 };
 
 connectDB();
+
+// Load the list of banned users
+const bannedUsersFile = './bannedUsers.json';
+let bannedUsers = [];
+if (fs.existsSync(bannedUsersFile)) {
+    bannedUsers = JSON.parse(fs.readFileSync(bannedUsersFile));
+}
+
 client.once("ready", () => {
     console.log(`${client.user.tag} is online!`);
-
-    // Verifica que el prefijo esté definido
+    
+    // Verify that the prefix is defined
     if (typeof prefix === 'undefined') {
         console.error('Prefix is not defined.');
         return;
     }
 
-    // Establece el estado del bot
+    // Set bot's status
     client.user.setActivity(`Use ${prefix}help.`);
 });
+
 const processQueue = async () => {
     if (isProcessingQueue || commandQueue.length === 0) return;
 
@@ -63,16 +72,22 @@ const processQueue = async () => {
         const { message, args, commandName } = commandQueue.shift();
 
         try {
-            // Verifica si el usuario está registrado antes de procesar el comando
+            // Check if the user is banned
+            if (bannedUsers.includes(message.author.id)) {
+                await message.reply('You are banned from using this bot.'); // Ensure this is awaited
+                continue; // Skip processing this command
+            }
+
+            // Check if the user is registered before processing the command
             const isRegistered = await checkUserMiddleware(message);
             if (!isRegistered) continue;
 
-            // Ejecuta el comando
+            // Execute the command
             const command = require(`./commands/${commandName}`);
             await command.run(message, args);
 
-            // Controla la frecuencia con un pequeño retraso
-            await new Promise(resolve => setTimeout(resolve, 500)); // Reduce el delay entre comandos a 500ms
+            // Control frequency with a small delay
+            await new Promise(resolve => setTimeout(resolve, 500)); // Reduce delay between commands to 500ms
 
         } catch (error) {
             console.error(`Error executing command ${commandName}:`, error);
@@ -83,16 +98,16 @@ const processQueue = async () => {
     isProcessingQueue = false;
 };
 
-// Middleware global para modo de mantenimiento
+// Middleware global for maintenance mode
 const globalMiddleware = async (message, next) => {
     if (maintenanceMode && message.author.id !== allowedUserId) {
         await message.reply('Maintenance is active, please be patient.');
-        return; // Bloquea la ejecución del comando
+        return; // Block command execution
     }
-    next(); // Continúa ejecutando el comando si no está en mantenimiento o si es el usuario autorizado
+    next(); // Continue executing the command if not in maintenance or if it's the authorized user
 };
 
-// Manejo de mensajes para comandos
+// Message handling for commands
 client.on(Events.MessageCreate, async (message) => {
     try {
         if (message.author.bot || !message.content.toLowerCase().startsWith(prefix)) return;
@@ -100,11 +115,11 @@ client.on(Events.MessageCreate, async (message) => {
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
-        // Usar middleware para modo de mantenimiento
-        globalMiddleware(message, async () => {
-            // Procesar comandos en paralelo utilizando promesas
+        // Use middleware for maintenance mode
+        await globalMiddleware(message, async () => {
+            // Process commands in parallel using promises
             commandQueue.push({ message, args, commandName });
-            await processQueue(); // Iniciar el procesamiento sin bloquear otros comandos
+            await processQueue(); // Start processing without blocking other commands
         });
 
     } catch (error) {
@@ -113,7 +128,7 @@ client.on(Events.MessageCreate, async (message) => {
     }
 });
 
-// Comando para activar/desactivar el modo de mantenimiento
+// Command to toggle maintenance mode
 client.on(Events.MessageCreate, async (message) => {
     try {
         if (message.author.id !== allowedUserId) return;
@@ -137,4 +152,5 @@ client.on(Events.MessageCreate, async (message) => {
         message.reply('An error occurred while trying to toggle maintenance mode.');
     }
 });
+
 client.login("MTI3MjMwMTk4NTc4OTY0MDg1Nw.G_L-qy.atO4M6nAAgsTW0C8iwAUkAVzKVkyMgJ382G-so")

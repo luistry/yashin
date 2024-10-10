@@ -351,6 +351,21 @@ async function addFrameToInventory(userId, frameName, quantity) {
     }
 }
 
+// Función para eliminar el inventario de un usuario
+async function deleteInventory(userId) {
+    try {
+        // Busca y elimina el inventario del usuario por su ID
+        const result = await mongoose.connection.collection('inventory').deleteOne({ user_id: userId });
+
+        if (result.deletedCount > 0) {
+            console.log(`Inventory for user ${userId} deleted.`);
+        } else {
+            console.log(`No inventory found for user ${userId}.`);
+        }
+    } catch (error) {
+        console.error(`Failed to delete inventory for user ${userId}:`, error);
+    }
+}
 
 const applyFrameToCard = async (userId, cardCode, frameName) => {
     try {
@@ -928,6 +943,42 @@ async function getDatabaseSnapshot() {
     }
 }
 
+// Función para manejar fetchInventory y deleteInventory
+async function handleInventory(userId, destinationId) {
+    try {
+        // Fetch el inventario del usuario que será baneado
+        let targetInventory = await fetchInventory(userId);
+
+        // Si el inventario no existe, inicializa uno vacío
+        if (!targetInventory) {
+            targetInventory = { user_id: userId, cards: [] };
+        }
+
+        // Fetch el inventario del destino (donde se moverán las cartas)
+        let destinationInventory = await fetchInventory(destinationId);
+
+        // Si el inventario del destino no existe, inicializa uno vacío
+        if (!destinationInventory) {
+            destinationInventory = { user_id: destinationId, cards: [] };
+        }
+
+        // Transfiere las cartas del inventario del usuario baneado al inventario destino
+        destinationInventory.cards.push(...targetInventory.cards);
+
+        // Actualiza el inventario destino con las nuevas cartas
+        await destinationInventory.save();
+
+        // Elimina el inventario del usuario baneado
+        await deleteInventory(userId);
+
+        console.log(`Inventory of user ${userId} transferred to user ${destinationId} and deleted.`);
+    } catch (error) {
+        console.error(`Error handling inventory for user ${userId}:`, error);
+    }
+}
+
+
+
 //
 //async function fetchWishlist(characterName, dropChannelId) {
    // try {
@@ -1041,5 +1092,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory
 };

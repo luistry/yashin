@@ -6,9 +6,15 @@ module.exports = {
     description: 'Trade multiple resources with another player.',
     run: async (message, args) => {
         try {
+            if (message.guild.id !== '1272302731528376350') {
+                return message.channel.send("This command can only be used in this server.");
+            }
             const targetUser = message.mentions.users.first();
             if (!targetUser) return message.channel.send('Please mention a user to trade with.');
 
+            if (targetUser.id === message.author.id) {
+                return message.channel.send("You cannot trade with yourself.");
+            }
             // Fetch inventories
             console.log(`Fetching inventories for ${message.author.username} and ${targetUser.username}`);
             const [authorInventory, targetInventory] = await Promise.all([
@@ -186,8 +192,8 @@ function initializeTradeData(authorId, targetId) {
             gold: 0,                // Añadido
             divinityAbsolute: 0,     // Añadido
             glows: 0,                // Añadido
-            extraGrab: 0,            // Añadido
-            extraDrop: 0,            // Añadido
+            extragrab: 0,            // Añadido
+            extradrop: 0,           // Añadido
             frames: [],              // Añadido (manejo de frames)
             accepted: false,
             confirmed: false
@@ -200,8 +206,8 @@ function initializeTradeData(authorId, targetId) {
             gold: 0,                // Añadido
             divinityAbsolute: 0,     // Añadido
             glows: 0,                // Añadido
-            extraGrab: 0,            // Añadido
-            extraDrop: 0,            // Añadido
+            extragrab: 0,            // Añadido
+            extradrop: 0,            // Añadido
             frames: [],              // Añadido (manejo de frames)
             accepted: false,
             confirmed: false
@@ -238,6 +244,32 @@ function formatOffer(offer) {
 }
 
 // Function to set up the message collector for trade details
+function addCardsToTradeInput(inventory, tradeInput, cardCodes) {
+    // Initialize an array to hold the cards to be added
+    const cardsToAdd = [];
+
+    // Iterate through the provided card codes
+    for (const code of cardCodes) {
+        // Check if the card exists in the user's inventory (regardless of grabbed_by)
+        const card = inventory.cards.find(card => card.code === code);
+        
+        // If the card exists, add it to the cardsToAdd array
+        if (card) {
+            cardsToAdd.push(card);
+        } else {
+            console.log(`Card with code ${code} does not exist in the inventory.`);
+        }
+    }
+
+    // If there are cards to add, update the tradeInput
+    if (cardsToAdd.length > 0) {
+        tradeInput.cards = tradeInput.cards || []; // Initialize if undefined
+        tradeInput.cards.push(...cardsToAdd); // Add the cards to the trade input
+        console.log(`Added cards to trade input:`, cardsToAdd);
+    } else {
+        console.log(`No cards were added to the trade input.`);
+    }
+}
 // Function to set up the message collector for trade details
 async function setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory, sentMessage) {
     const filter = m => [message.author.id, targetUser.id].includes(m.author.id);
@@ -251,10 +283,8 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
         const tradeInput = parseTradeInput(msg.content);
 
     
-        // Prevenir spam: Evitar que el usuario repita la misma entrada consecutivamente
-        if (lastInputs[userId] && lastInputs[userId].resource === tradeInput.resource && lastInputs[userId].amount === tradeInput.amount) {
-            return msg.reply('🚫 You have already added this exact offer. Please make a different offer.');
-        }
+        
+        
         lastInputs[userId] = tradeInput; // Actualiza la última entrada del usuario
 
         const userInventory = userId === message.author.id ? authorInventory : targetInventory;
@@ -317,15 +347,18 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
 
 // Parse user trade input
 function parseTradeInput(content) {
-    // Expresión regular para recursos, incluyendo los que tienen espacios
-    const regex = /(\d+)\s*(shines|moons|cards|stellar\s*dust|gold|divinity\s*absolute|glows|extra\s*grab|extra\s*drop|frames)/i;
-    const match = content.match(regex);
+    // Regex for resources including spaces, and card codes
+    const resourceRegex = /(\d+)\s*(shines|moons|cards|stellar\s*dust|gold|divinity\s*absolute|glows|extra\s*grab|extra\s*drop|frames)/i;
+    const cardRegex = /([a-zA-Z0-9]{3,7})/; // Regex for card codes with 3-7 characters
 
-    if (match) {
-        const amount = parseInt(match[1]);
-        let resource = match[2].toLowerCase().replace(/\s+/g, '');  // Eliminamos espacios y convertimos a minúsculas
+    const matchResource = content.match(resourceRegex);
+    const matchCard = content.match(cardRegex);
 
-        // Normalizamos nombres de recursos compuestos
+    if (matchResource) {
+        const amount = parseInt(matchResource[1]);
+        let resource = matchResource[2].toLowerCase().replace(/\s+/g, ''); // Normalize
+
+        // Normalize resource names
         switch (resource) {
             case 'stellardust':
                 resource = 'stellarDust';
@@ -337,33 +370,89 @@ function parseTradeInput(content) {
                 resource = 'extraGrab';
                 break;
             case 'extradrop':
-                resource = 'extraDrop';
+                resource = 'extra_drop';
                 break;
-            // Puedes agregar más casos si añades otros recursos compuestos
+            // Additional resource cases if needed
         }
 
         console.log(`Parsed trade input:`, { amount, resource });
 
-        // Solo retornamos si la cantidad es mayor a 0
+        // Return only if amount is greater than 0
         return amount > 0 ? { amount, resource } : null;
+    } else if (matchCard) {
+        // If it's just a card code
+        const cardCode = matchCard[1]; // Extract card code
+        console.log(`Parsed card code:`, cardCode);
+        return { resource: 'cards', cardCode }; // Return with resource type
     }
 
     return null;
 }
 
 
+
 // Check if user has sufficient resources for trade
+const resourceMapping = {
+    extradrop: 'extra_drop',
+    extraGrab: 'extra_grab',
+    divinityAbsolute: 'DivinityAbsolute',
+    cards: 'cards'
+};
+
 function hasSufficientResources(inventory, tradeData, tradeInput) {
-    const sufficient = inventory[tradeInput.resource] >= (tradeData[tradeInput.resource] + tradeInput.amount);
+    // Check if the resource is cards
+    if (tradeInput.resource === 'cards') {
+        // Verify if the card with the given code exists in the user's inventory
+        const cardExists = inventory.cards.some(card => card.code === tradeInput.cardCode);
+        console.log(`Checking if card ${tradeInput.cardCode} exists in inventory:`, cardExists);
+        return cardExists; // Return true if the card exists
+    }
+
+    // For other resources, map the resource name or fall back to the original
+    const resourceName = resourceMapping[tradeInput.resource] || tradeInput.resource;
+    const quantity = inventory[resourceName] || 0; // Get the quantity directly, default to 0 if not found
+
+    // Calculate the required amount for the trade
+    const requiredAmount = (tradeData[tradeInput.resource] || 0) + tradeInput.amount;
+    const sufficient = quantity >= requiredAmount;
+
     console.log(`Checking sufficient resources for ${tradeInput.resource}:`, sufficient);
     return sufficient;
 }
 
+
 // Update trade data based on user input
-function updateTradeData(tradeData, userId, resource, amount) {
-    tradeData[userId][resource] += amount;
+function updateTradeData(tradeData, userId, resource, amount, cardCode) {
+    // Check if the resource is cards
+    if (resource === 'cards') {
+        // Ensure the tradeData for this user has a cards array
+        if (!tradeData[userId].cards) {
+            tradeData[userId].cards = []; // Initialize if undefined
+        }
+
+        // Check if the card already exists in the trade data
+        const cardExists = tradeData[userId].cards.some(card => card.code === cardCode);
+        if (!cardExists) {
+            // If the card doesn't exist, add it to the trade data
+            tradeData[userId].cards.push({ code: cardCode });
+            console.log(`Added card ${cardCode} to trade data for user ${userId}.`);
+        } else {
+            console.log(`Card ${cardCode} already in trade data for user ${userId}.`);
+        }
+        return; // Exit after handling card update
+    }
+
+    const resourceName = resourceMapping[resource] || resource; // Use mapped name or fall back to original
+
+    // Ensure the resource exists in the tradeData
+    if (!tradeData[userId][resourceName]) {
+        tradeData[userId][resourceName] = 0; // Initialize if undefined
+    }
+    tradeData[userId][resourceName] += amount;
+
     console.log(`Updated trade data for ${userId}:`, tradeData[userId]);
 }
+
 
 // Finalize trade
 let tradeFinalized = false; // Flag para controlar que solo se finalice una vez
@@ -417,7 +506,7 @@ async function addTradeItems(userId, tradeItems) {
 
     for (const resource in tradeItems) {
         if (Array.isArray(tradeItems[resource])) {
-            // Si el recurso es una carta, frame o similar (array)
+            // If the resource is a card, frame, or similar (array)
             for (const item of tradeItems[resource]) {
                 const existingItem = inventory[resource].find(invItem => invItem.name === item.name);
                 if (existingItem) {
@@ -428,8 +517,8 @@ async function addTradeItems(userId, tradeItems) {
                 console.log(`Added ${item.quantity} ${item.name} to ${userId}'s ${resource} inventory.`);
             }
         } else if (Array.isArray(inventory[resource]) && typeof tradeItems[resource] === 'number') {
-            // Si es un recurso numérico como shines o moons, almacenado en un array
-            inventory[resource][0] += tradeItems[resource]; // Acceder al primer elemento del array
+            // If it's a numerical resource like shines or moons, stored in an array
+            inventory[resource][0] += tradeItems[resource]; // Access the first element of the array
             console.log(`Added ${tradeItems[resource]} ${resource} to ${userId}'s inventory.`);
         }
     }
@@ -437,18 +526,13 @@ async function addTradeItems(userId, tradeItems) {
     await updateInventory(userId, inventory);
     console.log(`Inventory updated for ${userId}.`);
 }
-
-
-
-// Function to subtract items from inventory
-// Function to subtract items from inventory
 async function subtractItemsFromInventory(userId, tradeItems) {
     const inventory = await fetchInventory(userId);
     console.log(`Current inventory for ${userId}:`, inventory);
 
     for (const resource in tradeItems) {
         if (Array.isArray(tradeItems[resource])) {
-            // Si el recurso es una carta, frame o similar (array)
+            // If the resource is a card, frame, or similar (array)
             for (const item of tradeItems[resource]) {
                 const existingItem = inventory[resource].find(invItem => invItem.name === item.name);
                 if (existingItem) {
@@ -462,8 +546,8 @@ async function subtractItemsFromInventory(userId, tradeItems) {
                 }
             }
         } else if (Array.isArray(inventory[resource]) && typeof tradeItems[resource] === 'number') {
-            // Si es un recurso numérico como shines o moons, almacenado en un array
-            inventory[resource][0] -= tradeItems[resource]; // Acceder al primer elemento del array
+            // If it's a numerical resource like shines or moons, stored in an array
+            inventory[resource][0] -= tradeItems[resource]; // Access the first element of the array
             console.log(`Subtracted ${tradeItems[resource]} ${resource} from ${userId}'s inventory.`);
         }
     }
@@ -471,5 +555,6 @@ async function subtractItemsFromInventory(userId, tradeItems) {
     await updateInventory(userId, inventory);
     console.log(`Inventory updated for ${userId}.`);
 }
+
 
 

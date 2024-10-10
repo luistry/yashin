@@ -623,6 +623,7 @@ module.exports = {
                     await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` ·  ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
                 } else {
                     await message.reply(`${reactingUser}, the card has already been grabbed!`);
+                    
                 }
             } else if (priorityData && priorityData.userId !== reactingUser.id) {
                 await message.channel.send({
