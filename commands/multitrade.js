@@ -162,6 +162,9 @@ function handleInitialCollector(collector, message, sentMessage, tradeData, targ
 }
 
 
+
+
+
 // Create a new action row with checkout buttons
 function createTradeActionRow() {
     return new ActionRowBuilder()
@@ -172,16 +175,49 @@ function createTradeActionRow() {
 }
 
 // Function to initialize trade data
+// Function to initialize trade data for both users
 function initializeTradeData(authorId, targetId) {
     const tradeData = {
-        [authorId]: { shines: 0, moons: 0, cards: [], stellarDust: 0, accepted: false, confirmed: false },
-        [targetId]: { shines: 0, moons: 0, cards: [], stellarDust: 0, accepted: false, confirmed: false },
+        [authorId]: {
+            shines: 0,
+            moons: 0,
+            cards: [],
+            stellarDust: 0,
+            gold: 0,                // Añadido
+            divinityAbsolute: 0,     // Añadido
+            glows: 0,                // Añadido
+            extraGrab: 0,            // Añadido
+            extraDrop: 0,            // Añadido
+            frames: [],              // Añadido (manejo de frames)
+            accepted: false,
+            confirmed: false
+        },
+        [targetId]: {
+            shines: 0,
+            moons: 0,
+            cards: [],
+            stellarDust: 0,
+            gold: 0,                // Añadido
+            divinityAbsolute: 0,     // Añadido
+            glows: 0,                // Añadido
+            extraGrab: 0,            // Añadido
+            extraDrop: 0,            // Añadido
+            frames: [],              // Añadido (manejo de frames)
+            accepted: false,
+            confirmed: false
+        }
     };
+
+    // Tracking the session status for both users (initializing with false)
+    activeTrades[authorId] = false;
+    activeTrades[targetId] = false;
+
     console.log('Trade data initialized:', tradeData);
     return tradeData;
 }
 
-// Function to format offer data
+
+// Function to format offer data for displaying the resources
 function formatOffer(offer) {
     if (!offer || Object.keys(offer).length === 0) {
         return 'No resources added.';
@@ -191,12 +227,13 @@ function formatOffer(offer) {
     for (const [key, value] of Object.entries(offer)) {
         if (key === 'cards') {
             entries.push(`${value.length} cards`); // Display number of cards
-        } else if (value > 0) {
+        } else if (value > 0 && key !== 'accepted' && key !== 'confirmed') {
             entries.push(`${value} ${key}`); // Display amount and type of resource
         }
     }
-    const formatted = entries.join(', '); // Return formatted string
-    console.log(`Formatted offer:`, formatted);
+
+    const formatted = entries.length > 0 ? entries.join(', ') : 'No resources added.';
+    console.log('Formatted offer:', formatted);
     return formatted;
 }
 
@@ -213,10 +250,7 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
         const userId = msg.author.id;
         const tradeInput = parseTradeInput(msg.content);
 
-        if (!tradeInput) {
-            return msg.reply('❌ Invalid input. Make sure you use the correct format. Example: `2 shines`.');
-        }
-
+    
         // Prevenir spam: Evitar que el usuario repita la misma entrada consecutivamente
         if (lastInputs[userId] && lastInputs[userId].resource === tradeInput.resource && lastInputs[userId].amount === tradeInput.amount) {
             return msg.reply('🚫 You have already added this exact offer. Please make a different offer.');
@@ -279,18 +313,44 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
         }
     });
 }
+
+
 // Parse user trade input
 function parseTradeInput(content) {
-    const regex = /(\d+)\s*(shines|moons|cards|stellar\s*dust)/i;
+    // Expresión regular para recursos, incluyendo los que tienen espacios
+    const regex = /(\d+)\s*(shines|moons|cards|stellar\s*dust|gold|divinity\s*absolute|glows|extra\s*grab|extra\s*drop|frames)/i;
     const match = content.match(regex);
+
     if (match) {
         const amount = parseInt(match[1]);
-        const resource = match[2].toLowerCase();
+        let resource = match[2].toLowerCase().replace(/\s+/g, '');  // Eliminamos espacios y convertimos a minúsculas
+
+        // Normalizamos nombres de recursos compuestos
+        switch (resource) {
+            case 'stellardust':
+                resource = 'stellarDust';
+                break;
+            case 'divinityabsolute':
+                resource = 'divinityAbsolute';
+                break;
+            case 'extragrab':
+                resource = 'extraGrab';
+                break;
+            case 'extradrop':
+                resource = 'extraDrop';
+                break;
+            // Puedes agregar más casos si añades otros recursos compuestos
+        }
+
         console.log(`Parsed trade input:`, { amount, resource });
+
+        // Solo retornamos si la cantidad es mayor a 0
         return amount > 0 ? { amount, resource } : null;
     }
+
     return null;
 }
+
 
 // Check if user has sufficient resources for trade
 function hasSufficientResources(inventory, tradeData, tradeInput) {
@@ -308,105 +368,108 @@ function updateTradeData(tradeData, userId, resource, amount) {
 // Finalize trade
 let tradeFinalized = false; // Flag para controlar que solo se finalice una vez
 
-async function finalizeTrade(interaction, tradeData, authorId, targetId) {
-    if (tradeFinalized) {
-        console.log('Trade already finalized. Skipping execution.');
-        return; // Si ya fue finalizado, no ejecutamos la función de nuevo
-    }
+let activeTrades = {}; // Para rastrear las sesiones activas
 
-    console.log(`Finalizing trade between ${authorId} and ${targetId}`);
-    
-    const completed = createCompletedTradeEmbed(authorId, targetId);
-
+async function finalizeTrade(interaction, tradeData, authorId, targetId, collector) {
     try {
-        // Actualizar el mensaje para confirmar la finalización del trade
-        await interaction.update({ embeds: [completed], components: [] });
+        const authorOffer = tradeData[authorId];
+        const targetOffer = tradeData[targetId];
 
-        // Obtener inventarios de ambos usuarios
-        const authorInventory = await fetchInventory(authorId);
-        const targetInventory = await fetchInventory(targetId);
+        // Restar los recursos del autor
+        await subtractItemsFromInventory(authorId, authorOffer);
 
-        // Verificar si ambos usuarios tienen suficientes recursos
-        if (!hasSufficientResources(authorInventory, tradeData[authorId]) || !hasSufficientResources(targetInventory, tradeData[targetId])) {
-            throw new Error('One or both users do not have sufficient resources for the trade.');
+        // Restar los recursos del target
+        await subtractItemsFromInventory(targetId, targetOffer);
+
+        // Agregar los recursos al inventario del target
+        await addTradeItems(targetId, authorOffer);
+
+        // Agregar los recursos al inventario del autor
+        await addTradeItems(authorId, targetOffer);
+
+        console.log(`Trade successfully finalized between ${authorId} and ${targetId}.`);
+
+        // Guardar los inventarios actualizados
+      //  await saveInventories(authorId);
+       // await saveInventories(targetId);
+
+        // Detener el collector si está activo
+        if (collector) {
+            collector.stop();  // Finaliza el colector si sigue activo
+            console.log('Collector has been stopped.');
         }
 
-        // Actualizar inventarios (restar items de los inventarios de ambos)
-        await updateInventory(authorId, subtractItemsFromInventory(authorInventory, tradeData[authorId]));
-        await updateInventory(targetId, subtractItemsFromInventory(targetInventory, tradeData[targetId]));
-
-        // Añadir los items tradeados al inventario de cada uno
-        await addTradeItems(authorId, tradeData[targetId]);
-        await addTradeItems(targetId, tradeData[authorId]);
-
-        console.log('Trade finalized successfully.');
-        
-        // Establecer la bandera de finalización
-        tradeFinalized = true;
-
+        await interaction.followUp('✅ Trade finalized successfully, inventories updated, and collector stopped!');
     } catch (error) {
         console.error('Error finalizing trade:', error);
-        await interaction.followUp({ content: '⚠️ There was an error finalizing the trade. Please try again later.' });
+        await interaction.followUp('⚠️ There was an error finalizing the trade. Please try again later.');
     }
 }
 
 
+
+
+// Function to add trade items to the inventory
 // Function to add trade items to the inventory
 async function addTradeItems(userId, tradeItems) {
     const inventory = await fetchInventory(userId);
     console.log(`Current inventory for ${userId}:`, inventory);
+
     for (const resource in tradeItems) {
-        inventory[resource] += tradeItems[resource];
-        console.log(`Adding ${tradeItems[resource]} ${resource} to ${userId}'s inventory.`);
+        if (Array.isArray(tradeItems[resource])) {
+            // Si el recurso es una carta, frame o similar (array)
+            for (const item of tradeItems[resource]) {
+                const existingItem = inventory[resource].find(invItem => invItem.name === item.name);
+                if (existingItem) {
+                    existingItem.quantity += item.quantity;
+                } else {
+                    inventory[resource].push(item);
+                }
+                console.log(`Added ${item.quantity} ${item.name} to ${userId}'s ${resource} inventory.`);
+            }
+        } else if (Array.isArray(inventory[resource]) && typeof tradeItems[resource] === 'number') {
+            // Si es un recurso numérico como shines o moons, almacenado en un array
+            inventory[resource][0] += tradeItems[resource]; // Acceder al primer elemento del array
+            console.log(`Added ${tradeItems[resource]} ${resource} to ${userId}'s inventory.`);
+        }
     }
+
     await updateInventory(userId, inventory);
+    console.log(`Inventory updated for ${userId}.`);
 }
+
+
 
 // Function to subtract items from inventory
-function subtractItemsFromInventory(inventory, tradeData) {
-    for (const resource in tradeData) {
-        inventory[resource] -= tradeData[resource];
-        console.log(`Subtracting ${tradeData[resource]} ${resource} from inventory.`);
-    }
-    return inventory;
-}
+// Function to subtract items from inventory
+async function subtractItemsFromInventory(userId, tradeItems) {
+    const inventory = await fetchInventory(userId);
+    console.log(`Current inventory for ${userId}:`, inventory);
 
-// Function to create completed trade embed
-function createCompletedTradeEmbed(authorUsername, targetUsername) {
-    return new EmbedBuilder()
-        .setColor('#32CD32') // Green color for completed trade
-        .setTitle('✅ Trade Completed')
-        .setDescription(`The trade between ${authorUsername} and ${targetUsername} has been successfully completed!`)
-        .setFooter({ text: 'Thank you for trading!' })
-        .setTimestamp();
-}
-
-// Function to handle confirm/cancel trade buttons
-async function handleTradeConfirmation(interaction, tradeData, message, targetUser) {
-    const filter = i => [message.author.id, targetUser.id].includes(i.user.id);
-    const confirmationCollector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
-
-    confirmationCollector.on('collect', async (i) => {
-        console.log(`Confirmation interaction collected from ${i.user.username}: ${i.customId}`);
-
-        if (i.customId === 'confirmTrade') {
-            tradeData[i.user.id].confirmed = true; // Mark as confirmed
-            console.log(`Trade confirmed by ${i.user.username}. Current trade data:`, tradeData);
-
-            // Check if both have confirmed
-            if (tradeData[message.author.id].confirmed && tradeData[targetUser.id].confirmed) {
-                const completedEmbed = createCompletedTradeEmbed(message.author.username, targetUser.username);
-                await i.update({ embeds: [completedEmbed], components: [] }); // Update embed to indicate trade completion
-                confirmationCollector.stop(); // Stop the collector
-                console.log(`Trade completed between ${message.author.username} and ${targetUser.username}`);
-            } else {
-                await i.reply({ content: `${i.user.username} has confirmed the trade.`, ephemeral: true });
+    for (const resource in tradeItems) {
+        if (Array.isArray(tradeItems[resource])) {
+            // Si el recurso es una carta, frame o similar (array)
+            for (const item of tradeItems[resource]) {
+                const existingItem = inventory[resource].find(invItem => invItem.name === item.name);
+                if (existingItem) {
+                    existingItem.quantity -= item.quantity;
+                    if (existingItem.quantity <= 0) {
+                        inventory[resource] = inventory[resource].filter(invItem => invItem.name !== item.name);
+                    }
+                    console.log(`Subtracted ${item.quantity} ${item.name} from ${userId}'s ${resource} inventory.`);
+                } else {
+                    console.log(`Attempted to remove ${item.name} from ${userId}'s inventory, but it was not found.`);
+                }
             }
-        } else if (i.customId === 'cancelTrade') {
-            console.log(`${i.user.username} has canceled the trade.`);
-            await i.update({ content: `${i.user.username} has canceled the trade.`, components: [] });
-            confirmationCollector.stop();
-            message.channel.send('Trade canceled.');
+        } else if (Array.isArray(inventory[resource]) && typeof tradeItems[resource] === 'number') {
+            // Si es un recurso numérico como shines o moons, almacenado en un array
+            inventory[resource][0] -= tradeItems[resource]; // Acceder al primer elemento del array
+            console.log(`Subtracted ${tradeItems[resource]} ${resource} from ${userId}'s inventory.`);
         }
-    });
+    }
+
+    await updateInventory(userId, inventory);
+    console.log(`Inventory updated for ${userId}.`);
 }
+
+
