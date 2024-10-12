@@ -541,18 +541,18 @@ module.exports = {
         for (let i = 0; i < numberOfCharactersToShow; i++) {
             await msg.react(emojis[i]);
         }
-
+//reactions to add the card grabbed
         const filter = (reaction, user) => emojis.includes(reaction.emoji.name) && !user.bot;
 
         const cardGrabbed = new Map(); 
         const priorityMap = new Map(); 
         const collector = msg.createReactionCollector({ filter, time: 60000 });
 
-        // Crear un delay para congelar las reacciones de otros usuarios
+        //create a delay to freeze the reactions to avoid the sniper reactions for other playerss the only user with permission to grab the card is the dropper in the first 6 seconds
         let dropperPriority = true; 
         setTimeout(() => {
-            dropperPriority = false; // Después de 4 segundos, se elimina la prioridad
-        }, 6000); // Tiempo de prioridad para el dropper (4 segundos)
+            dropperPriority = false; // after 6 secondss, priority dropper delete
+        }, 6000); // Tiempo de prioridad para el dropper (6segundos)
 
         collector.on('collect', async (reaction, reactingUser) => {
             const index = emojis.indexOf(reaction.emoji.name);
