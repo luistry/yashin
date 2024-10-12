@@ -606,7 +606,7 @@ module.exports = {
                         code: selectedCharacter.code,
                         __v: selectedCharacter.__v,
                         dropped_on: new Date(),
-                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta
+                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta nice
                         channel_id: message.channel.id,
                         guild_id: message.guild.id,
                         default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
