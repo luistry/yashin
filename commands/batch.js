@@ -11,11 +11,12 @@ const getUpcomingSeries = async () => {
         'Eleceed ',
         'Overlord',
         'BanG Dream!',
-        'Remaining ',
-        ' Remaining',
-        ' Remaining',
+        'Cyberpunk ',
+        ' Wuthering Waves',
+        'Love live!',
     ];
 };
+//batch
 
 module.exports = {
     name: 'batch',

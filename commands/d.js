@@ -50,7 +50,8 @@ function getRandomCharacterIds() {
     const ids = new Set();
 
     // Generate one ID between 15000 and 15408
-    const randomIdInRange = Math.floor(Math.random() * (15408 - 15000 + 1)) + 15000; // ID in range
+    const randomIdInRange = Math.floor(Math.random() * (150669 - 150121 + 1)) + 150121; // ID in range
+
     ids.add(randomIdInRange);
     // Continue adding random IDs until we have 3 total
     while (ids.size < 3) {

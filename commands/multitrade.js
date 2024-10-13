@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js'); 
 const { updateInventory, fetchInventory } = require('./database/database');
-
+let activeTrades = new Set(); // Para rastrear las sesiones activas
 module.exports = {
     name: 'multitrade',
     description: 'Trade multiple resources with another player.',
@@ -15,6 +15,14 @@ module.exports = {
             if (targetUser.id === message.author.id) {
                 return message.channel.send("You cannot trade with yourself.");
             }
+             // Verificar si los usuarios ya tienen un trade activo
+        if (activeTrades.has(message.author.id) || activeTrades.has(targetUser.id)) {
+            return message.channel.send('One of the users already has an active trade.');
+        }
+
+        // Marcar a los usuarios como activos en el trade
+        activeTrades.add(message.author.id);
+        activeTrades.add(targetUser.id);
             // Fetch inventories
             console.log(`Fetching inventories for ${message.author.username} and ${targetUser.username}`);
             const [authorInventory, targetInventory] = await Promise.all([
@@ -272,19 +280,19 @@ function addCardsToTradeInput(inventory, tradeInput, cardCodes) {
 }
 // Function to set up the message collector for trade details
 const activeCollectors = {}; // Store active collectors for trades
-
+let isTradeActive = true; // Variable de control global
 async function setupMessageCollector(message, tradeData, targetUser, authorInventory, targetInventory, sentMessage) {
     const userIds = [message.author.id, targetUser.id];
-
-    // Check for an active collector in this channel
+    if (!isTradeActive) return; // Si el trade ya fue finalizado, no ejecuta nada más
+    
     if (activeCollectors[message.channel.id]) {
         return message.reply('🚫 There is already an active trade session in this channel. Please finalize or cancel it before starting a new one.');
     }
 
     const messageCollector = message.channel.createMessageCollector({ filter: m => userIds.includes(m.author.id), time: 100000 });
-    activeCollectors[message.channel.id] = messageCollector; // Mark this channel as having an active collector
+    activeCollectors[message.channel.id] = messageCollector;
 
-    const lastInputs = { [message.author.id]: null, [targetUser.id]: null }; // Track last inputs
+    const lastInputs = { [message.author.id]: null, [targetUser.id]: null };
 
     message.channel.send('Please specify the resources you want to trade. Example: `2 shines` or `moons 3`');
 
@@ -292,25 +300,36 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
         const userId = msg.author.id;
         const tradeInput = parseTradeInput(msg.content);
 
-        // Avoid duplicate input for the same user
+        // Evitar entradas duplicadas
         if (lastInputs[userId] === tradeInput) {
             return msg.reply('🚫 You cannot submit the same trade input consecutively.');
         }
 
-        lastInputs[userId] = tradeInput; // Update last input
+        lastInputs[userId] = tradeInput;
 
         const userInventory = userId === message.author.id ? authorInventory : targetInventory;
 
-        // Check if tradeData for the user is initialized
+        // Asegúrate de que el `tradeData` para el usuario esté inicializado
         if (!tradeData[userId]) {
-            tradeData[userId] = { shines: 0, moons: 0, gold: 0, cards: [] }; // Initialize the tradeData for the user
+            tradeData[userId] = { shines: 0, moons: 0, gold: 0, cards: [] };
         }
 
-        // Check if the user has sufficient resources
-      
+        // **Verificación de recursos** (aplica para shines, moons, etc.)
+        if (['shines', 'moons', 'gold'].includes(tradeInput.resource)) {
+            const availableAmount = userInventory[tradeInput.resource] || 0; // Recurso disponible del inventario
+            const newTotal = tradeData[userId][tradeInput.resource] + tradeInput.amount; // Nuevo total después de agregar el trade
 
-        // Handle cards specifically
-        if (tradeInput.resource === 'cards') {
+            if (newTotal > availableAmount) {
+                return msg.reply(`🚫 You do not have enough **${tradeInput.resource}**. You only have **${availableAmount}** available.`);
+            }
+
+            // Si tiene suficientes recursos, actualiza el trade
+            tradeData[userId][tradeInput.resource] = newTotal;
+            msg.reply(`✅ You have successfully added **${tradeInput.amount} ${tradeInput.resource}** to the trade.`);
+        }
+
+        // **Manejo de cartas**
+        else if (tradeInput.resource === 'cards') {
             const cardExists = userInventory.cards.some(card => card.code === tradeInput.cardCode);
             const cardAlreadyAdded = tradeData[userId].cards.includes(tradeInput.cardCode);
 
@@ -324,14 +343,11 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
             } else {
                 return msg.reply(`🚫 Card with code **${tradeInput.cardCode}** does not exist in your inventory.`);
             }
-        } else {
-            // Update trade data for other resources
-            updateTradeData(tradeData, userId, tradeInput.resource, tradeInput.amount);
         }
 
         console.log(`Trade data updated for ${userId}:`, tradeData);
 
-        // Create and edit embed with updated offers
+        // Crear y actualizar el embed con las ofertas actualizadas
         const updatedEmbed = new EmbedBuilder()
             .setTitle(`Trade between ${message.author.username} and ${targetUser.username}`)
             .setDescription('These are the selected resources for the trade.')
@@ -343,9 +359,7 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
 
         await sentMessage.edit({ embeds: [updatedEmbed] }).catch(console.error);
 
-     
-
-        // Check if both users have confirmed their trades
+        // Verificar si ambos usuarios han confirmado sus trades
         if (tradeData[message.author.id].confirmed && tradeData[targetUser.id].confirmed) {
             console.log('Both users have confirmed their trades. Finalizing trade.');
             await finalizeTrade(tradeData, message.author.id, targetUser.id).catch(err => {
@@ -357,7 +371,6 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
     });
 
     messageCollector.on('end', (collected) => {
-        // Clean up the active collector
         delete activeCollectors[message.channel.id];
 
         if (collected.size === 0) {
@@ -367,6 +380,7 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
         }
     });
 }
+
 
 
 
@@ -508,7 +522,7 @@ function updateTradeData(tradeData, userId, resource, amount, cardCode) {
 // Finalize trade
 let tradeFinalized = false; // Flag para controlar que solo se finalice una vez
 
-let activeTrades = {}; // Para rastrear las sesiones activas
+
 async function finalizeTrade(interaction, tradeData, authorId, targetId, collector) {
     try {
         const authorOffer = tradeData[authorId];
@@ -534,7 +548,11 @@ async function finalizeTrade(interaction, tradeData, authorId, targetId, collect
         await addTradeItems(authorId, targetOffer);
 
         console.log(`Trade successfully finalized between ${authorId} and ${targetId}.`);
-
+          isTradeActive = false; 
+        activeTrades.delete(authorId);
+        activeTrades.delete(targetId);
+        setupMessageCollector = null
+        parseTradeInput = null
         // Detener el collector si está activo
         if (collector) {
             collector.stop();  // Finaliza el colector si sigue activo
