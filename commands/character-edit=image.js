@@ -62,6 +62,12 @@ module.exports = {
                 // Maneja múltiples personajes si es necesario
             } else {
                 const character = characters[0];
+
+                // Verificar si la nueva URL es la misma que la actual
+                if (character.img_url === new_img_url) {
+                    return await message.channel.send('The new image URL is the same as the current one. Please provide a different URL.');
+                }
+
                 await handleCharacterEdit(character, new_img_url, message, notificationChannelId);
             }
 
@@ -103,8 +109,9 @@ async function handleCharacterEdit(character, new_img_url, message, notification
     collector.on('collect', async (interaction) => {
         if (interaction.customId === 'checkout') {
             try {
-                // Generar nombre de archivo con el nombre y la serie del personaje
-                const filename = `${character.name.replace(/\s+/g, '_')}-${character.series.replace(/\s+/g, '_')}.jpg`;
+                // Generar nombre de archivo con el nombre, la serie y un timestamp para evitar caché
+                const timestamp = Date.now();
+                const filename = `${character.name.replace(/\s+/g, '_')}-${character.series.replace(/\s+/g, '_')}-${timestamp}.jpg`;
 
                 const uploadedUrl = await uploadImageToDigitalOcean(new_img_url, filename);
                 await editAnimeCharacterImage(character.name, character.series, uploadedUrl); // Actualizar con la URL subida
@@ -147,19 +154,19 @@ async function uploadImageToDigitalOcean(imageUrl, filename) {
             responseType: 'arraybuffer'
         });
 
-        // Preparar los parámetros de subida
+        // Preparar los parámetros de subida, con el nombre único para evitar caché
         const uploadParams = {
             Bucket: SPACE_NAME,
             Key: filename,
             Body: response.data,
-            ACL: 'public-read', // Hace que el archivo sea accesible públicamente
-            ContentType: 'image/jpeg' // Asegurarse de que el tipo MIME es correcto
+            ACL: 'public-read', // Mantener acceso público
+            ContentType: 'image/jpeg' // Verificar que sea imagen JPEG
         };
 
-        // Subir la imagen a Digital Ocean Spaces
+        // Subir la imagen y sobrescribir la existente
         const data = await s3.upload(uploadParams).promise();
 
-        // Retornar la URL completa del archivo subido
+        // Retornar la URL completa del archivo subido (la misma URL será usada para reemplazar la imagen)
         return `https://yashin.nyc3.cdn.digitaloceanspaces.com/${filename}`;
     } catch (error) {
         console.error('Error uploading image to Digital Ocean:', error);

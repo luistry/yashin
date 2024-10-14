@@ -23,7 +23,7 @@ const client = new Client({
 });
 
 const prefix = "y!";
-const allowedUserId = '346799501878755342';
+const allowedUserId = ['346799501878755342','339869018439548938','123864968461287428','300619060729610258','270681503665618954']
 let maintenanceMode = false; // Variable for maintenance mode
 const commandQueue = [];
 let isProcessingQueue = false;
@@ -100,13 +100,12 @@ const processQueue = async () => {
 
 // Middleware global for maintenance mode
 const globalMiddleware = async (message, next) => {
-    if (maintenanceMode && message.author.id !== allowedUserId) {
+    if (maintenanceMode && !allowedUserId.includes(message.author.id)) {
         await message.reply('Maintenance is active, please be patient.');
-        return; // Block command execution
+        return; // Bloquea la ejecución del comando si no es un usuario autorizado
     }
-    next(); // Continue executing the command if not in maintenance or if it's the authorized user
+    next(); // Continúa con la ejecución del comando si no hay mantenimiento o si es un usuario autorizado
 };
-
 // Message handling for commands
 client.on(Events.MessageCreate, async (message) => {
     try {
@@ -131,7 +130,8 @@ client.on(Events.MessageCreate, async (message) => {
 // Command to toggle maintenance mode
 client.on(Events.MessageCreate, async (message) => {
     try {
-        if (message.author.id !== allowedUserId) return;
+        // Verificar si el ID del usuario está en el array de usuarios permitidos
+        if (!allowedUserId.includes(message.author.id)) return;
 
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
@@ -152,5 +152,4 @@ client.on(Events.MessageCreate, async (message) => {
         message.reply('An error occurred while trying to toggle maintenance mode.');
     }
 });
-
 client.login("MTI3MjMwMTk4NTc4OTY0MDg1Nw.G_L-qy.atO4M6nAAgsTW0C8iwAUkAVzKVkyMgJ382G-so")
