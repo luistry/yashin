@@ -746,6 +746,33 @@ async function addAnimeCharacter(name, series, img_url) {
         console.error('Error al añadir el personaje de anime:', error);
     }
 }
+async function addHalloweenCard(name, series, img_url) {
+    try {
+        // Busca la carta con el _id más alto que sea mayor o igual a 200000
+        const highestIdCard = await HalloweenCard.findOne({ _id: { $gte: 200000 } }).sort({ _id: -1 }).exec();
+
+        // Si no hay cartas con _id >= 200000, asigna el _id como 200000, si no, suma 1 al _id más alto
+        const newId = highestIdCard ? highestIdCard._id + 1 : 200000;
+
+        // Crea una nueva carta de Halloween con el _id correcto
+        const newCard = new HalloweenCard({
+            _id: newId,
+            name: name,
+            series: series,
+            img_url: img_url,
+            wishlist: 0, // Valor por defecto
+            burned: 0, // Valor por defecto
+            event:" Event Halloween 2024"
+        });
+
+        // Guarda la nueva carta en la base de datos
+        await newCard.save();
+
+        console.log('Nueva carta de Halloween añadida:', newCard);
+    } catch (error) {
+        console.error('Error al añadir la carta de Halloween:', error);
+    }
+}
 
 async function editAnimeCharacterImage(name, series, new_img_url) {
     try {
@@ -1092,5 +1119,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory,addHalloweenCard
 };

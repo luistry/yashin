@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js'); 
+const { EmbedBuilder } = require('discord.js');
 const { fetchInventory, updateInventory } = require('./database/database');
 const Canvas = require('canvas');
 const { createCanvas, loadImage } = require('canvas');
@@ -158,6 +158,7 @@ module.exports = {
 
             let acceptedByGiver = false;
             let acceptedByRecipient = false;
+            let transactionComplete = false;  // Flag to prevent multiple transfers
 
             // Reaction handling logic
             collector.on('collect', async (reaction, user) => {
@@ -180,7 +181,9 @@ module.exports = {
                     if (user.id === giverId) acceptedByGiver = true;
                     if (user.id === recipientId) acceptedByRecipient = true;
 
-                    if (acceptedByGiver && acceptedByRecipient) {
+                    if (acceptedByGiver && acceptedByRecipient && !transactionComplete) {
+                        transactionComplete = true;  // Mark the transaction as completed
+
                         const freshGiverInventory = await fetchInventory(giverId);
                         const freshCard = freshGiverInventory.cards.find(c => c.code === cardCode);
 
@@ -199,6 +202,16 @@ module.exports = {
                         recipientInventory.cards.push(card);
                         await updateInventory(recipientId, recipientInventory);
 
+                        // **Verificación adicional**: Comprueba que la carta fue añadida al inventario del receptor
+                        const updatedRecipientInventory = await fetchInventory(recipientId);
+                        const transferredCard = updatedRecipientInventory.cards.find(c => c.code === cardCode);
+
+                        if (!transferredCard) {
+                            // Si la carta no está en el inventario del receptor, restablece el inventario original
+                            await updateInventory(giverId, giverInventoryBackup);
+                            return message.channel.send('The card transfer failed. The card was not transferred successfully.');
+                        }
+
                         await msg.edit({
                             content: `Card successfully transferred to ${mentionedUser}!`,
                             embeds: [embed.setColor('#00FF00')]
@@ -208,19 +221,24 @@ module.exports = {
                 }
             });
 
-            // Collector end handling
-            collector.on('end', collected => {
-                if (collected.size === 0 || !acceptedByGiver || !acceptedByRecipient) {
-                    msg.edit('The card transfer was not completed.');
+            collector.on('end', async collected => {
+                if (!acceptedByGiver || !acceptedByRecipient) {
+                    await msg.edit({
+                        content: '',
+                        embeds: [
+                            new EmbedBuilder()
+                                .setColor('#FF0000')
+                                .setTitle('Card Transfer Timeout')
+                                .setDescription(`${message.author.username}, the transfer has timed out. Please try again.`)
+                                .setImage('attachment://card.png')
+                                .setTimestamp()
+                        ]
+                    });
                 }
             });
-
         } catch (error) {
-            console.error('Error giving card:', error);
-
-            // Restore giver's inventory in case of error
-            await updateInventory(message.author.id, giverInventoryBackup);
-            message.channel.send('An error occurred while trying to give the card.');
+            console.error('Error in give command:', error);
+            return message.channel.send('An error occurred while processing your request.');
         }
     }
 };

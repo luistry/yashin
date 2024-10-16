@@ -6,14 +6,21 @@ module.exports = {
     description: 'Displays the wishlist of a user and compares it with the inventory of another.',
     run: async (message) => {
         try {
+            console.log('Wishlist command started.');
+
             const targetUser = message.mentions.users.first() || message.author;
+            console.log('Target user:', targetUser.username);
+
             const targetInventory = await fetchInventory(targetUser.id);
+            console.log('Target inventory:', targetInventory);
 
             if (!targetInventory || !targetInventory.wishlist || targetInventory.wishlist.length === 0) {
+                console.warn(`${targetUser.username}'s wishlist is empty.`);
                 return message.channel.send(`${targetUser.username}'s wishlist is empty.`);
             }
 
             const userInventory = await fetchInventory(message.author.id);
+            console.log('User inventory:', userInventory);
 
             const wishlistLimit = targetInventory.limited || 10;
             const remainingSlots = wishlistLimit - targetInventory.wishlist.length;
@@ -21,28 +28,50 @@ module.exports = {
             let currentPage = 0;
 
             const wishlistItems = await Promise.all(targetInventory.wishlist.map(async item => {
+                console.log('Processing wishlist item:', item);
+
                 const { name, series } = item;
                 const character = await AnimeCharacter.findOne({ name, series });
                 const wishlistCount = character ? character.wishlist : 'Not specified';
                 return { name, series, wishlistCount };
             }));
+            console.log('Processed wishlist items:', wishlistItems);
 
             const matchingItems = wishlistItems
                 .map(item => {
-                    const matchingCard = userInventory.cards.find(card =>
-                        card.name.toLowerCase() === item.name.toLowerCase() &&
-                        card.series.toLowerCase() === item.series.toLowerCase()
-                    );
+                    const matchingCard = userInventory.cards.find(card => {
+                        if (card.name && card.series) {
+                            return card.name.toLowerCase() === item.name.toLowerCase() &&
+                                   card.series.toLowerCase() === item.series.toLowerCase();
+                        }
+                        return false;
+                    });
+                    
                     if (matchingCard) {
+                        console.log('Matching card found:', matchingCard);
                         return {
                             name: matchingCard.name,
                             series: matchingCard.series,
                             code: matchingCard.code
                         };
+                    } else {
+                        console.log('No matching card found for item:', item);
                     }
                     return null;
                 })
                 .filter(item => item !== null);
+
+            console.log('Matching items:', matchingItems);
+
+            const filteredMatchingItems = matchingItems.filter(item => 
+                targetUser.id !== message.author.id || 
+                !wishlistItems.some(wishlistItem => 
+                    wishlistItem.name.toLowerCase() === item.name.toLowerCase() &&
+                    wishlistItem.series.toLowerCase() === item.series.toLowerCase()
+                )
+            );
+
+            console.log('Filtered matching items:', filteredMatchingItems);
 
             const generateEmbed = (page) => {
                 const start = page * itemsPerPage;
@@ -64,7 +93,9 @@ module.exports = {
             };
 
             const generateMatchingMenu = () => {
-                const menuOptions = matchingItems.map(item =>
+                if (filteredMatchingItems.length === 0) return null; 
+
+                const menuOptions = filteredMatchingItems.map(item =>
                     new StringSelectMenuOptionBuilder()
                         .setLabel(`${item.name} - ${item.series}`)
                         .setValue(`${item.name}_${item.series}`)
@@ -89,8 +120,13 @@ module.exports = {
 
             const embedMessage = await message.channel.send({
                 embeds: [generateEmbed(currentPage)],
-                components: matchingItems.length > 0 ? [generateMatchingMenu(), generateCopyButton()] : []
+                components: [
+                    generateMatchingMenu(),
+                    generateCopyButton()
+                ].filter(Boolean)
             });
+
+            console.log('Embed message sent.');
 
             await embedMessage.react('◀️');
             await embedMessage.react('▶️');
@@ -101,6 +137,8 @@ module.exports = {
             const componentCollector = embedMessage.createMessageComponentCollector({ filter, time: 60000 });
 
             reactionCollector.on('collect', async (reaction) => {
+                console.log('Reaction received:', reaction.emoji.name);
+
                 if (reaction.emoji.name === '▶️') {
                     if (currentPage < Math.ceil(wishlistItems.length / itemsPerPage) - 1) {
                         currentPage++;
@@ -116,15 +154,16 @@ module.exports = {
             });
 
             componentCollector.on('collect', async interaction => {
+                console.log('Component interaction received:', interaction.customId);
+
                 if (interaction.customId === 'select_matching') {
                     const [name, series] = interaction.values[0].split('_');
-                    const selectedCard = matchingItems.find(item => item.name === name && item.series === series);
+                    const selectedCard = filteredMatchingItems.find(item => item.name === name && item.series === series);
                     await interaction.reply({ content: `You selected **${selectedCard.name}** from **${selectedCard.series}** with code \`${selectedCard.code}\`.`, ephemeral: true });
                 } else if (interaction.customId === 'copy_codes') {
-                    const codes = matchingItems.map(item => `${item.name} - ${item.series} (Code: ${item.code})`).join('\n');
-                    await interaction.reply({ content: `Copied codes:\n\`\`\`${codes}\`\`\``, ephemeral: false });
+                    const codes = filteredMatchingItems.map(item => `${item.name} - ${item.series} (Code: ${item.code})`).join('\n');
+                    await interaction.reply({ content: `Copied codes:\n\`\`\`${codes}\`\`\``, ephemeral: true });
 
-                    // Disable the button after it has been pressed once
                     const updatedComponents = embedMessage.components.map(row => {
                         return new ActionRowBuilder().addComponents(
                             row.components.map(component => {
@@ -142,6 +181,7 @@ module.exports = {
 
             reactionCollector.on('end', () => {
                 embedMessage.reactions.removeAll();
+                console.log('Reaction collector ended.');
             });
 
         } catch (error) {

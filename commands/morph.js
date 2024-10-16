@@ -19,16 +19,22 @@ const frameMorphs = [
 
 // Function to select a frame based on probabilities
 function getRandomFrame() {
+    // Calculate the total chance to normalize
     const totalWeight = frameMorphs.reduce((acc, frame) => acc + frame.chance, 0);
+
+    // Generate a random number between 0 and totalWeight
     const random = Math.random() * totalWeight;
     let cumulativeChance = 0;
 
+    // Iterate through the frameMorphs to find the frame that corresponds to the random number
     for (const frame of frameMorphs) {
         cumulativeChance += frame.chance;
         if (random < cumulativeChance) {
             return frame;
         }
     }
+
+    // Fallback in case of rounding issues, return the last frame
     return frameMorphs[frameMorphs.length - 1];
 }
 async function drawCardPreview(card, morphType, retries = 3) {
@@ -263,29 +269,31 @@ module.exports = {
                         verifyCollector.on('collect', async verifyInteraction => {
                             await verifyInteraction.deferUpdate(); // Defer update to avoid interaction not replied error
                             if (verifyInteraction.customId === 'final_confirm_morph') {
-                                // Deduct gold and apply the morph
-                                userInventory.gold -= 250;
+                                // Deduct gold from array[0]
+                                if (userInventory.gold[0] >= 250) {
+                                    userInventory.gold[0] -= 250;
+                                } else {
+                                    return verifyInteraction.followUp({ content: 'Not enough gold to complete the morph.' });
+                                }
 
                                 // Apply the morph
                                 switch (selectedMorph) {
                                     case 'version':
-                                       
                                         card.last_color_letter = generateHexCode(); // Store last color letter
-                                        
                                         break;
                                     case 'series':
-                                        card.last_color_letter_series = card.color_letter_series; // Store last color letter series
-                                        card.color_letter_series = generateHexCode();
+                                        card.last_color_letter_series = generateHexCode(); // Store last color letter series
+                                      
                                         break;
                                     case 'name':
-                                        card.last_color_letter_name = card.color_letter_name; // Store last color letter name
-                                        card.color_letter_name = generateHexCode();
+                                        card.last_color_letter_name = generateHexCode(); // Store last color letter name
+                                     
                                         break;
                                     case 'frame':
-                                        const randomFrame = getRandomFrame();
-                                        card.last_morph = card.default_frame; // Store previous frame
-                                        card.default_frame = randomFrame.url; // Apply new frame
-                                        card.morph_apply = randomFrame.url; // Save applied morph
+                                       
+                                        card.last_morph = getRandomFrame(); // Store previous frame
+                                       
+                                      
                                         break;
                                 }
 
@@ -332,30 +340,26 @@ module.exports = {
                                 return;
                             }
 
-                            // Switch for verify morph case
+                            // Apply the final morph after verification
                             switch (selectedMorph) {
                                 case 'version':
-                                    // Handle specific logic for verifying version morph
-                                    card.last_color_letter = card.last_color_letter
+                                    card.last_color_letter = card.last_color_letter;
                                     break;
                                 case 'series':
-                                     card.last_color_letter_series = card.color_letter_series;
-                                    
+                                    card.last_color_letter_series = card.color_letter_series;
                                     break;
                                 case 'name':
                                     card.last_color_letter_name = card.color_letter_name;
                                     break;
                                 case 'frame':
-                                    card.last_morph =  card.morph_apply;
+                                    card.last_morph = card.morph_apply;
                                     break;
                             }
-
-                            verifyCollector.stop();
+                            await updateInventory(userId, userInventory);
                         });
-                    } else {
-                        await interaction.followUp({ content: 'Morphing process canceled.' });
+                    } else if (interaction.customId === 'cancel_morph') {
+                        await interaction.followUp({ content: 'Morph process has been cancelled.' });
                     }
-
                     confirmCollector.stop();
                 });
             }
@@ -363,8 +367,8 @@ module.exports = {
 
         collector.on('end', collected => {
             if (collected.size === 0) {
-                morphMessage.edit({ content: 'Interaction timed out.', components: [] });
+                morphMessage.edit({ content: 'Morph process timed out.', components: [] });
             }
         });
-    },
+    }
 };
