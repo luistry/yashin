@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { AnimeCharacter, fetchInventory } = require('./database/database');
 
 module.exports = {
-    name: 'lu',
+    name: 'ls',
     description: 'Lookup characters from a specific series and check how many you have collected.',
     options: [
         {

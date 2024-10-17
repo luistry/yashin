@@ -534,6 +534,7 @@ const animeCharacterSchema = new mongoose.Schema({
         default: 0
     },
     burned: { type: Number, default: 0}, 
+    event: {type: String}
 
 }, { collection: 'animeCharacters' });
 
@@ -748,21 +749,21 @@ async function addAnimeCharacter(name, series, img_url) {
 }
 async function addHalloweenCard(name, series, img_url) {
     try {
-        // Busca la carta con el _id más alto que sea mayor o igual a 200000
-        const highestIdCard = await HalloweenCard.findOne({ _id: { $gte: 200000 } }).sort({ _id: -1 }).exec();
+        // Busca el personaje con el _id más alto que sea mayor o igual a 200000
+        const highestIdCard = await AnimeCharacter.findOne({ _id: { $gte: 200000 } }).sort({ _id: -1 }).exec();
 
-        // Si no hay cartas con _id >= 200000, asigna el _id como 200000, si no, suma 1 al _id más alto
+        // Si no hay personajes con _id >= 200000, asigna el _id como 200000, si no, suma 1 al _id más alto
         const newId = highestIdCard ? highestIdCard._id + 1 : 200000;
 
         // Crea una nueva carta de Halloween con el _id correcto
-        const newCard = new HalloweenCard({
+        const newCard = new AnimeCharacter({
             _id: newId,
             name: name,
             series: series,
             img_url: img_url,
             wishlist: 0, // Valor por defecto
             burned: 0, // Valor por defecto
-            event:" Event Halloween 2024"
+            event: "Halloween 2024" // Añade el evento
         });
 
         // Guarda la nueva carta en la base de datos
@@ -773,6 +774,7 @@ async function addHalloweenCard(name, series, img_url) {
         console.error('Error al añadir la carta de Halloween:', error);
     }
 }
+
 
 async function editAnimeCharacterImage(name, series, new_img_url) {
     try {

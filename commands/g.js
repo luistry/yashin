@@ -5,7 +5,7 @@ const { createCanvas, loadImage } = require('canvas');
 const fetch = require('node-fetch');
 
 module.exports = {
-    name: 'give',
+    name: 'g',
     description: 'Give a card to another user',
     async run(message, args) {
         try {
@@ -237,8 +237,8 @@ module.exports = {
                 }
             });
         } catch (error) {
-            console.error('Error in give command:', error);
-            return message.channel.send('An error occurred while processing your request.');
+            console.error('Error executing give command:', error);
+            return message.channel.send('An error occurred while executing the give command.');
         }
     }
 };

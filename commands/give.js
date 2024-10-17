@@ -237,8 +237,8 @@ module.exports = {
                 }
             });
         } catch (error) {
-            console.error('Error in give command:', error);
-            return message.channel.send('An error occurred while processing your request.');
+            console.error('Error executing give command:', error);
+            return message.channel.send('An error occurred while executing the give command.');
         }
     }
 };
