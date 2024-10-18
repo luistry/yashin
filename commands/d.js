@@ -544,28 +544,36 @@ module.exports = {
         }
 //reactions to add the card grabbed
         const filter = (reaction, user) => emojis.includes(reaction.emoji.name) && !user.bot;
-
         const cardGrabbed = new Map(); 
         const priorityMap = new Map(); 
         const collector = msg.createReactionCollector({ filter, time: 60000 });
-
-        //create a delay to freeze the reactions to avoid the sniper reactions for other playerss the only user with permission to grab the card is the dropper in the first 6 seconds
+        
+        // Create a delay to freeze the reactions to avoid sniper reactions for other players. The only user with permission to grab the card is the dropper in the first 6 seconds
         let dropperPriority = true; 
         setTimeout(() => {
-            dropperPriority = false; // after 6 secondss, priority dropper delete
-        }, 6000); // Tiempo de prioridad para el dropper (6segundos)
-
+            dropperPriority = false; // After 6 seconds, priority dropper deleted
+        }, 6000); // Tiempo de prioridad para el dropper (6 segundos)
+        
         collector.on('collect', async (reaction, reactingUser) => {
             const index = emojis.indexOf(reaction.emoji.name);
             if (index === -1) return;
-
+        
             const selectedCharacter = updatedCharacters[index];
             if (!selectedCharacter) return;
-
+        
             const grabCooldown = await handleGrabCooldown(reactingUser.id);
+            const hasCardBeenGrabbed = cardGrabbed.has(selectedCharacter._id);
+            const inventory = await fetchInventory(reactingUser.id);
+        
+            // If the user is on cooldown and the card has already been grabbed, do not consume an extra grab
             if (grabCooldown) {
-                const inventory = await fetchInventory(reactingUser.id);
-                if (inventory.extra_grab > 0) {
+                if (hasCardBeenGrabbed) {
+                    await message.channel.send({
+                        content: `${reactingUser}, you are on cooldown and the card has already been grabbed. No extra grab used.`,
+                        ephemeral: true
+                    });
+                    return;
+                } else if (inventory.extra_grab > 0) {
                     await consumeItems(reactingUser.id, ['extra_grab']);
                     await message.channel.send({
                         content: `Cooldown active. Extra grab used! Remaining extra grabs: ${inventory.extra_grab - 1}`,
@@ -579,11 +587,11 @@ module.exports = {
                     return;
                 }
             }
-
+        
             const priority = priorityMap.get(selectedCharacter._id);
             const currentTime = Date.now();
             if (dropperPriority && reactingUser.id !== userId) {
-                // Si hay prioridad activa y no es el dropper, bloquear la reacción
+                // If there is active priority and it's not the dropper, block the reaction
                 await message.channel.send({
                     content: `${reactingUser}, **the dropper has priority for a few more seconds!** Please wait.`,
                     ephemeral: true
@@ -592,11 +600,11 @@ module.exports = {
             } else if (!priority) {
                 priorityMap.set(selectedCharacter._id, { userId, timestamp: currentTime });
             }
-
+        
             const priorityData = priorityMap.get(selectedCharacter._id);
-
+        
             if (priorityData && priorityData.userId === userId && currentTime - priorityData.timestamp < 6000) {
-                if (!cardGrabbed.has(selectedCharacter._id)) {
+                if (!hasCardBeenGrabbed) {
                     cardGrabbed.set(selectedCharacter._id, userId);
                     await addCardToInventory(reactingUser.id, {
                         _id: selectedCharacter._id,
@@ -607,7 +615,7 @@ module.exports = {
                         code: selectedCharacter.code,
                         __v: selectedCharacter.__v,
                         dropped_on: new Date(),
-                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta nice
+                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabe la carta
                         channel_id: message.channel.id,
                         guild_id: message.guild.id,
                         default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
@@ -620,11 +628,12 @@ module.exports = {
                         last_color_letter: "",
                         color_letter: ""
                     });
-
-                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` ·  ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+        
+                  
+                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+                    await updateLastGrab(reactingUser.id);
                 } else {
                     await message.reply(`${reactingUser}, the card has already been grabbed!`);
-                    
                 }
             } else if (priorityData && priorityData.userId !== reactingUser.id) {
                 await message.channel.send({
@@ -632,7 +641,7 @@ module.exports = {
                     ephemeral: true
                 });
             } else {
-                if (!cardGrabbed.has(selectedCharacter._id)) {
+                if (!hasCardBeenGrabbed) {
                     cardGrabbed.set(selectedCharacter._id, reactingUser.id);
                     await addCardToInventory(reactingUser.id, {
                         _id: selectedCharacter._id,
@@ -643,7 +652,7 @@ module.exports = {
                         code: selectedCharacter.code,
                         __v: selectedCharacter.__v,
                         dropped_on: new Date(),
-                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabee la carta
+                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabe la carta
                         channel_id: message.channel.id,
                         guild_id: message.guild.id,
                         default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
@@ -653,13 +662,14 @@ module.exports = {
                         color_letter_series: "",
                         color_letter: ""
                     });
-
-                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` ·  ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+        
+                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
                 } else {
                     await message.reply(`${reactingUser}, you already grabbed this card!`);
                 }
             }
         });
+        
 
         collector.on('end', async collected => {
             if (collected.size === 0) {
