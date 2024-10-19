@@ -8,10 +8,9 @@ module.exports = {
         const mentionedUser = message.mentions.users.first();
         const providedId = message.content.split(' ')[1];
 
-        // Correctly assign userId
         const userId = mentionedUser 
             ? mentionedUser.id 
-            : providedId && providedId.match(/^\d{17,19}$/) // Validate if providedId is a valid user ID
+            : providedId && providedId.match(/^\d{17,19}$/)
                 ? providedId 
                 : message.author.id;
 
@@ -23,49 +22,39 @@ module.exports = {
         try {
             console.log(`Fetching inventory for user ID: ${userId}`);
 
-            // Fetch inventory, if fetchInventory returns null, assign an empty object
             const inventory = await fetchInventory(userId);
             console.log('Inventory fetched:', inventory);
 
-            // Check if there are cards
             if (!inventory || !Array.isArray(inventory.cards) || inventory.cards.length === 0) {
                 return message.channel.send(`${displayName} doesn't have any cards in their collection.`);
             }
 
             let cards = inventory.cards;
 
-            // Filter logic
-            const contentAfterCommand = message.content.slice(message.content.indexOf(' ') + 1).trim(); 
-
-            // Adjust searchQuery to exclude the ID if necessary
+            const contentAfterCommand = message.content.slice(message.content.indexOf(' ') + 1).trim();
             const searchQuery = mentionedUser || (providedId && providedId.match(/^\d{17,19}$/)) 
-                ? contentAfterCommand.replace(providedId, '').trim() // Remove ID from searchQuery if it exists
+                ? contentAfterCommand.replace(providedId, '').trim()
                 : contentAfterCommand;
 
-            // Apply filters if there's a search query
             if (searchQuery) {
-                // Filter by character name
                 const characterMatch = searchQuery.match(/name:\s*([\w\s]+)/i);
                 if (characterMatch) {
                     const characterName = characterMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.name && card.name.toLowerCase().includes(characterName));
                 }
 
-                // Filter by series
                 const seriesMatch = searchQuery.match(/series:\s*([\w\s]+)/i);
                 if (seriesMatch) {
                     const seriesName = seriesMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.series && card.series.toLowerCase().includes(seriesName));
                 }
 
-                // Filter by tag
                 const tagMatch = searchQuery.match(/t:\s*([\w\s]+)/i);
                 if (tagMatch) {
                     const tagName = tagMatch[1].toLowerCase().trim();
                     cards = cards.filter(card => card.tagName && card.tagName.toLowerCase().includes(tagName));
                 }
 
-                // Filter by __v (version) ascending
                 const orderMatch = searchQuery.match(/o:p/i);
                 if (orderMatch) {
                     cards = cards.sort((a, b) => (a.__v || 0) - (b.__v || 0));
@@ -139,36 +128,74 @@ module.exports = {
                 } else {
                     sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
                 }
+            };
 
-                const filter = i => i.user.id === message.author.id;
-                const collector = sentMessage.createMessageComponentCollector({ filter });
+            const handleInteraction = async (interaction) => {
+                try {
+                    if (interaction.customId === 'first') {
+                        currentPage = 0;
+                    } else if (interaction.customId === 'previous' && currentPage > 0) {
+                        currentPage--;
+                    } else if (interaction.customId === 'next' && currentPage < Math.ceil(cards.length / itemsPerPage) - 1) {
+                        currentPage++;
+                    } else if (interaction.customId === 'last') {
+                        currentPage = Math.ceil(cards.length / itemsPerPage) - 1;
+                    }
 
-                collector.on('collect', async i => {
-                    try {
-                        await i.deferUpdate();
+                    await sendPage(currentPage);
 
-                        if (i.customId === 'first') {
-                            currentPage = 0;
-                        } else if (i.customId === 'previous' && currentPage > 0) {
-                            currentPage--;
-                        } else if (i.customId === 'next' && currentPage < Math.ceil(cards.length / itemsPerPage) - 1) {
-                            currentPage++;
-                        } else if (i.customId === 'last') {
-                            currentPage = Math.ceil(cards.length / itemsPerPage) - 1;
-                        }
-
-                        await sendPage(currentPage);
-                    } catch (error) {
+                    // Deferred update with error handling for unknown interaction
+                    await interaction.deferUpdate().catch((error) => {
                         if (error.code === 10062) {
-                            console.warn('Ignoring unknown interaction error');
+                            console.log('Ignoring unknown interaction');
                         } else {
                             console.error('Error handling button interaction:', error);
                         }
-                    }
-                });
+                    });
+                } catch (error) {
+                    console.error('Error handling button interaction:', error);
+                }
             };
 
             await sendPage(currentPage);
+
+            // Preload and handle future interactions without expiration
+            const collector = message.channel.createMessageComponentCollector({ time: 3600000 });
+
+            collector.on('collect', async i => {
+                await handleInteraction(i);
+            });
+
+            collector.on('end', async () => {
+                try {
+                    const disabledRow = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('first')
+                                .setLabel('⏮️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('previous')
+                                .setLabel('←')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('next')
+                                .setLabel('→')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('last')
+                                .setLabel('⏭️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true)
+                        );
+                    await sentMessage.edit({ components: [disabledRow] });
+                } catch (error) {
+                    console.error('Error disabling buttons after collector end:', error);
+                }
+            });
 
         } catch (error) {
             console.error('Error fetching inventory:', error);
