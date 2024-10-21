@@ -45,6 +45,7 @@ const inventorySchema = new mongoose.Schema({
         quantity: { type: Number, required: true },
         image: { type: String } // Asegúrate de que el campo `image` esté definido
     }],
+    candy: []
     
 }, { collection: 'inventory' });
 

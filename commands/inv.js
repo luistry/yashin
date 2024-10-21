@@ -18,7 +18,7 @@ module.exports = {
             }
 
             // Destructuring de los campos relevantes del inventario
-            const { shines, gold, stellar_dust, extra_drop, extra_grab, Frames, moons, SpeedOfReaction, GodofEvasion, FastHands, DivinityAbsolute, Glows, Box_title, Box_banner } = inventory;
+            const { shines, gold, stellar_dust, extra_drop, extra_grab, Frames, moons, SpeedOfReaction, GodofEvasion, FastHands, DivinityAbsolute, Glows, Box_title, Box_banner,candy } = inventory;
 
             // Formatear la información de los frames
             let framesDescription = 'No frames found.';
@@ -44,7 +44,8 @@ module.exports = {
             const GodofEvasiontext = GodofEvasion && GodofEvasion.length > 0 ? `• God Of Evasion • ${GodofEvasion.join(', ')} :fingers_crossed:` : null;
             const FastHandstext = FastHands && FastHands.length > 0 ? `• Fast Hands • ${FastHands.join(', ')} 🙌` : null;
             const SpeedofReactiontext = SpeedOfReaction && SpeedOfReaction.length > 0 ? `• Speed Of Reaction • ${SpeedOfReaction.join(', ')} :open_hands:` : null;
-            const Glowstext = Glows && Glows.length > 0 ? `• Glows • ${Glows.join(', ')} :droplet:` : null;
+            const Glowstext = Glows && Glows.length > 0 ? `• Radiance • ${Glows.join(', ')} :droplet:` : null;
+            const Candytext = candy && candy.length > 0 ? `• Candys • ${candy.join(', ')} 🍬` : null;
 
             // Crear la lista de items para el embed
             const items = [
@@ -61,6 +62,7 @@ module.exports = {
                 Glowstext,
                 boxTitleText,
                 boxBannerText,
+                Candytext,
                 `\n**Frames**:\n${framesDescription}`
             ].filter(Boolean);
 

@@ -543,145 +543,183 @@ module.exports = {
             await msg.react(emojis[i]);
         }
 //reactions to add the card grabbed
-        const filter = (reaction, user) => emojis.includes(reaction.emoji.name) && !user.bot;
-        const cardGrabbed = new Map(); 
-        const priorityMap = new Map(); 
-        const collector = msg.createReactionCollector({ filter, time: 60000 });
-        
-        // Create a delay to freeze the reactions to avoid sniper reactions for other players. The only user with permission to grab the card is the dropper in the first 6 seconds
-        let dropperPriority = true; 
-        setTimeout(() => {
-            dropperPriority = false; // After 6 seconds, priority dropper deleted
-        }, 6000); // Tiempo de prioridad para el dropper (6 segundos)
-        
-        collector.on('collect', async (reaction, reactingUser) => {
-            const index = emojis.indexOf(reaction.emoji.name);
-            if (index === -1) return;
-        
-            const selectedCharacter = updatedCharacters[index];
-            if (!selectedCharacter) return;
-        
-            const grabCooldown = await handleGrabCooldown(reactingUser.id);
-            const hasCardBeenGrabbed = cardGrabbed.has(selectedCharacter._id);
-            const inventory = await fetchInventory(reactingUser.id);
-        
-            // If the user is on cooldown and the card has already been grabbed, do not consume an extra grab
-            if (grabCooldown) {
-                if (hasCardBeenGrabbed) {
-                    await message.channel.send({
-                        content: `${reactingUser}, you are on cooldown and the card has already been grabbed. No extra grab used.`,
-                        ephemeral: true
-                    });
-                    return;
-                } else if (inventory.extra_grab > 0) {
-                    await consumeItems(reactingUser.id, ['extra_grab']);
-                    await message.channel.send({
-                        content: `Cooldown active. Extra grab used! Remaining extra grabs: ${inventory.extra_grab - 1}`,
-                        ephemeral: true
-                    });
-                } else {
-                    await message.channel.send({
-                        content: `${reactingUser}, you are on cooldown. Please wait ${grabCooldown}.`,
-                        ephemeral: true
-                    });
-                    return;
-                }
-            }
-        
-            const priority = priorityMap.get(selectedCharacter._id);
-            const currentTime = Date.now();
-            if (dropperPriority && reactingUser.id !== userId) {
-                // If there is active priority and it's not the dropper, block the reaction
-                await message.channel.send({
-                    content: `${reactingUser}, **the dropper has priority for a few more seconds!** Please wait.`,
-                    ephemeral: true
-                });
-                return;
-            } else if (!priority) {
-                priorityMap.set(selectedCharacter._id, { userId, timestamp: currentTime });
-            }
-        
-            const priorityData = priorityMap.get(selectedCharacter._id);
-        
-            if (priorityData && priorityData.userId === userId && currentTime - priorityData.timestamp < 6000) {
-                if (!hasCardBeenGrabbed) {
-                    cardGrabbed.set(selectedCharacter._id, userId);
-                    await addCardToInventory(reactingUser.id, {
-                        _id: selectedCharacter._id,
-                        name: selectedCharacter.name,
-                        series: selectedCharacter.series,
-                        img_url: selectedCharacter.img_url,
-                        rarity: selectedCharacter.rarity,
-                        code: selectedCharacter.code,
-                        __v: selectedCharacter.__v,
-                        dropped_on: new Date(),
-                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabe la carta
-                        channel_id: message.channel.id,
-                        guild_id: message.guild.id,
-                        default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
-                        morph_apply: "",
-                        last_morph: "",
-                        color_letter_name: "",
-                        last_color_letter_name: "",
-                        last_color_letter_series: "",
-                        color_letter_series: "",
-                        last_color_letter: "",
-                        color_letter: ""
-                    });
-        
-                  
-                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
-                    await updateLastGrab(reactingUser.id);
-                } else {
-                    await message.reply(`${reactingUser}, the card has already been grabbed!`);
-                }
-            } else if (priorityData && priorityData.userId !== reactingUser.id) {
-                await message.channel.send({
-                    content: `You can't grab this card because <@${priorityData.userId}> has priority.`,
-                    ephemeral: true
-                });
-            } else {
-                if (!hasCardBeenGrabbed) {
-                    cardGrabbed.set(selectedCharacter._id, reactingUser.id);
-                    await addCardToInventory(reactingUser.id, {
-                        _id: selectedCharacter._id,
-                        name: selectedCharacter.name,
-                        series: selectedCharacter.series,
-                        img_url: selectedCharacter.img_url,
-                        rarity: selectedCharacter.rarity,
-                        code: selectedCharacter.code,
-                        __v: selectedCharacter.__v,
-                        dropped_on: new Date(),
-                        grabbed_by: reactingUser.id, // Cambiar al usuario que grabe la carta
-                        channel_id: message.channel.id,
-                        guild_id: message.guild.id,
-                        default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
-                        morph_apply: "",
-                        last_morph: "",
-                        color_letter_name: "",
-                        color_letter_series: "",
-                        color_letter: ""
-                    });
-        
-                    await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
-                } else {
-                    await message.reply(`${reactingUser}, you already grabbed this card!`);
-                }
-            }
-        });
-        
+const filter = (reaction, user) => emojis.includes(reaction.emoji.name) && !user.bot;
+const cardGrabbed = new Map(); 
+const priorityMap = new Map(); 
+const collector = msg.createReactionCollector({ filter, time: 60000 });
 
-        collector.on('end', async collected => {
-            if (collected.size === 0) {
-                try {
-                    await msg.edit({ content: `${msg.content}\n\n**The Drop has Expired.**` });
-                    await msg.reactions.removeAll();
-                } catch (error) {
-                    console.error('Error handling drop expiration:', error);
-                }
-            }
-        });
+// Crear un conjunto para mantener el estado de cooldown
+const cooldownUsers = new Set(); 
 
-        console.log(`Drop executed by ${user.username} in channel ${channel.id} with ${updatedCharacters.length} characters.`);
+let dropperPriority = true; 
+setTimeout(() => {
+    dropperPriority = false; 
+}, 6000); // 6 segundos
+
+collector.on('collect', async (reaction, reactingUser) => {
+    const index = emojis.indexOf(reaction.emoji.name);
+    if (index === -1) return;
+
+    const selectedCharacter = updatedCharacters[index];
+    if (!selectedCharacter) return;
+
+    // Comprobar si el usuario está en cooldown
+    const isCooldownUser = cooldownUsers.has(reactingUser.id);
+    const inventory = await fetchInventory(reactingUser.id);
+    const hasExtraGrab = inventory.extra_grab > 0;
+
+    // Manejo de cooldown
+    if (isCooldownUser && !hasExtraGrab) {
+        await message.channel.send({
+            content: `${reactingUser}, you cannot grab a card right now. Please wait for your cooldown to expire.`,
+            ephemeral: true
+        });
+        return;
     }
-};
+
+    const grabCooldown = await handleGrabCooldown(reactingUser.id);
+    const hasCardBeenGrabbed = cardGrabbed.has(selectedCharacter._id);
+
+    if (grabCooldown) {
+        if (hasCardBeenGrabbed) {
+            await message.channel.send({
+                content: `${reactingUser}, you are on cooldown and the card has already been grabbed. No extra grab used.`,
+                ephemeral: true
+            });
+            return;
+        } else if (hasExtraGrab) {
+            await consumeItems(reactingUser.id, ['extra_grab']);
+            await message.channel.send({
+                content: `Cooldown active. Extra grab used! Remaining extra grabs: ${inventory.extra_grab - 1}`,
+                ephemeral: true
+            });
+        } else {
+            await message.channel.send({
+                content: `${reactingUser}, you are on cooldown. Please wait ${grabCooldown}.`,
+                ephemeral: true
+            });
+            return;
+        }
+    }
+
+    const priority = priorityMap.get(selectedCharacter._id);
+    const currentTime = Date.now();
+    
+    // Si la prioridad del dropper ha terminado
+    if (!dropperPriority) {
+        // Permitir al usuario tomar la carta si no está en cooldown
+        if (!hasCardBeenGrabbed) {
+            cardGrabbed.set(selectedCharacter._id, reactingUser.id);
+            cooldownUsers.add(reactingUser.id); // Agregar al usuario a la lista de cooldown
+
+            await addCardToInventory(reactingUser.id, {
+                _id: selectedCharacter._id,
+                name: selectedCharacter.name,
+                series: selectedCharacter.series,
+                img_url: selectedCharacter.img_url,
+                rarity: selectedCharacter.rarity,
+                code: selectedCharacter.code,
+                __v: selectedCharacter.__v,
+                dropped_on: new Date(),
+                grabbed_by: reactingUser.id,
+                channel_id: message.channel.id,
+                guild_id: message.guild.id,
+                default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
+                morph_apply: "",
+                last_morph: "",
+                color_letter_name: "",
+                last_color_letter_name: "",
+                last_color_letter_series: "",
+                color_letter_series: "",
+                last_color_letter: "",
+                color_letter: ""
+            });
+
+            await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+
+            // Remover al usuario del cooldown después de un tiempo (ejemplo: 4 minutos)
+            setTimeout(() => {
+                cooldownUsers.delete(reactingUser.id);
+            }, 240000); // 240000 ms = 4 minutos
+        } else {
+            await message.reply(`${reactingUser}, the card has already been grabbed!`);
+        }
+        return;
+    }
+
+    // Lógica para manejar la prioridad
+    if (dropperPriority && reactingUser.id !== userId) {
+        await message.channel.send({
+            content: `${reactingUser}, **the dropper has priority for a few more seconds!** Please wait.`,
+            ephemeral: true
+        });
+        return;
+    }
+
+    // Manejo de la lógica de prioridad
+    if (!priority) {
+        priorityMap.set(selectedCharacter._id, { userId, timestamp: currentTime });
+    }
+
+    const priorityData = priorityMap.get(selectedCharacter._id);
+
+    if (priorityData && priorityData.userId === userId && currentTime - priorityData.timestamp < 6000) {
+        if (!hasCardBeenGrabbed) {
+            cardGrabbed.set(selectedCharacter._id, userId);
+            cooldownUsers.add(reactingUser.id); // Agregar al usuario a la lista de cooldown
+
+            await addCardToInventory(reactingUser.id, {
+                _id: selectedCharacter._id,
+                name: selectedCharacter.name,
+                series: selectedCharacter.series,
+                img_url: selectedCharacter.img_url,
+                rarity: selectedCharacter.rarity,
+                code: selectedCharacter.code,
+                __v: selectedCharacter.__v,
+                dropped_on: new Date(),
+                grabbed_by: reactingUser.id,
+                channel_id: message.channel.id,
+                guild_id: message.guild.id,
+                default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
+                morph_apply: "",
+                last_morph: "",
+                color_letter_name: "",
+                last_color_letter_name: "",
+                last_color_letter_series: "",
+                color_letter_series: "",
+                last_color_letter: "",
+                color_letter: ""
+            });
+
+            await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+          
+
+            // Remover al usuario del cooldown después de un tiempo (ejemplo: 4 minutos)
+            setTimeout(() => {
+                cooldownUsers.delete(reactingUser.id);
+            }, 240000); // 240000 ms = 4 minutos
+        } else {
+            await message.reply(`${reactingUser}, the card has already been grabbed!`);
+        }
+    } else if (priorityData && priorityData.userId !== reactingUser.id) {
+        await message.channel.send({
+            content: `You can't grab this card because <@${priorityData.userId}> has priority.`,
+            ephemeral: true
+        });
+    }
+});
+
+collector.on('end', async collected => {
+    if (collected.size === 0) {
+        try {
+            await msg.edit({ content: `${msg.content}\n\n**The Drop has Expired.**` });
+            await msg.reactions.removeAll();
+        } catch (error) {
+            console.error('Error handling drop expiration:', error);
+        }
+    }
+});
+
+console.log(`Drop executed by ${user.username} in channel ${channel.id} with ${updatedCharacters.length} characters.`);
+    }
+}
