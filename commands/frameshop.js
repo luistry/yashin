@@ -1,44 +1,37 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js'); 
 const { Frame } = require('./database/database');
 
 module.exports = {
     name: 'frameshop',
-    description: 'Browse and view frames for your cards.',
+    description: 'Browse and view frames available for your cards.',
     async run(message) {
-        const frames = await Frame.find(); // Get all frames from the collection
+        const frames = await Frame.find(); // Retrieve all frames from the database
 
         if (!frames.length) {
-            return message.reply({ content: 'No frames available in the shop.', ephemeral: true });
+            return message.reply({ content: 'No frames available in the shop at the moment.', ephemeral: true });
         }
 
         let currentIndex = 0;
-        let variables = {};
 
-        // Function to generate an embed for the current frame
+        // Generate an embed for the current frame
         const generateEmbed = (index, showFullImage = false) => {
             const frame = frames[index];
-            variables[`name${index}`] = frame.name || `Unknown Frame ${index + 1}`;
-            variables[`description${index}`] = frame.description || `No description available for Frame ${index + 1}`;
-            variables[`imagecarousel${index}`] = frame.imagecarousel || null;
-            variables[`frameId${index}`] = frame._id || index + 1;
-
             const priceMoons = '800 :crescent_moon:';
 
-            if (showFullImage && variables[`imagecarousel${index}`]) {
-                // Embed to show the full image only
-                return new EmbedBuilder()
-                    .setImage(variables[`imagecarousel${index}`])
-                    .setColor('#F0E68C')
-                    .setFooter({ text: `Frame ${variables[`frameId${index}`]} of ${frames.length}` });
+            const embed = new EmbedBuilder()
+                .setColor('#1E90FF')
+                .setFooter({ text: `Frame ${index + 1} of ${frames.length}` });
+
+            if (showFullImage && frame.imagecarousel) {
+                embed.setImage(frame.imagecarousel);
+            } else {
+                embed
+                    .setTitle(`🖼️ Frame Shop - ${frame.name || `Unknown Frame ${index + 1}`}`)
+                    .setDescription(`✨ **ID:** \`${frame._id}\`\n\n📝 **Description:**\n${frame.description || 'No description available.'}\n\n💰 **Price:**\n\`\`\`• ${priceMoons}\`\`\`\n\n**To purchase:**\n\`y!buy ${frame.name}\``)
+                    .setThumbnail(frame.imagecarousel);
             }
 
-            // Embed to display frame details
-            return new EmbedBuilder()
-                .setTitle(`🖼️ Frame Shop - ${variables[`name${index}`]}`)
-                .setDescription(`✨ **ID:** \`${variables[`frameId${index}`]}\`\n\n📝 **Description:**\n${variables[`description${index}`]}\n\n💰 **Price:**\n\`\`\`• ${priceMoons}\`\`\`\n\n**To buy this frame, use:**\n\`y!buy ${variables[`name${index}`]} to purchase\``)
-                .setThumbnail(variables[`imagecarousel${index}`]) // Show thumbnail of the frame
-                .setFooter({ text: `Frame ${variables[`frameId${index}`]} of ${frames.length}` })
-                .setColor('#1E90FF'); // Vibrant blue for a more attractive interface
+            return embed;
         };
 
         // Initial embed
@@ -49,28 +42,28 @@ module.exports = {
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('previous')
-                    .setLabel('← Previous')
+                    .setLabel('⬅️ Previous')
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(currentIndex === 0),
                 new ButtonBuilder()
                     .setCustomId('view_full_image')
-                    .setLabel('🖼️ View Full Image')
+                    .setLabel('🔍 View Full Image')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('next')
-                    .setLabel('Next →')
+                    .setLabel('Next ➡️')
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(currentIndex === frames.length - 1)
             );
 
-        const returnButton = new ButtonBuilder()
+        const backButton = new ButtonBuilder()
             .setCustomId('return_to_shop')
-            .setLabel('Back to Shop')
+            .setLabel('↩️ Back to Shop')
             .setStyle(ButtonStyle.Primary);
 
         const sentMessage = await message.reply({ embeds: [embed], components: [row], ephemeral: true });
 
-        // Create a collector to handle button interactions
+        // Collector to handle button interactions
         const filter = i => i.user.id === message.author.id;
         const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 });
 
@@ -80,29 +73,26 @@ module.exports = {
             } else if (i.customId === 'next' && currentIndex < frames.length - 1) {
                 currentIndex++;
             } else if (i.customId === 'view_full_image') {
-                // Update the embed to show only the full image
+                // Show the full image
                 embed = generateEmbed(currentIndex, true);
-                await i.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(returnButton)] });
+                await i.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(backButton)] });
                 return;
             } else if (i.customId === 'return_to_shop') {
-                // Return to shop view
+                // Return to the shop view
                 embed = generateEmbed(currentIndex);
                 await i.update({ embeds: [embed], components: [row] });
                 return;
             }
 
-            // Regenerate the embed with the new frame
+            // Update embed and button states
             embed = generateEmbed(currentIndex);
-
-            // Update buttons
             row.components[0].setDisabled(currentIndex === 0);
             row.components[2].setDisabled(currentIndex === frames.length - 1);
 
             await i.update({ embeds: [embed], components: [row] });
         });
 
-        collector.on('end', collected => {
-            // Disable buttons after the collector ends
+        collector.on('end', () => {
             row.components.forEach(button => button.setDisabled(true));
             sentMessage.edit({ components: [row] });
         });

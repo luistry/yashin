@@ -1,30 +1,20 @@
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-    // Ignore unknown interaction errors
-    if (error.code === 10062) {
-        console.warn('Ignoring unknown interaction error');
-        return;
-    }
-});
-
-// Here begins the rest of your code
-const fs = require('fs');
 const { Client, Events, Options } = require("discord.js");
 const mongoose = require('mongoose');
+const fs = require('fs');
+const { Prefix } = require('./commands/database/database'); // Modelo de prefijos personalizado
 const checkUserMiddleware = require('./commands/utils/middlewarecheckregister');
 
 const client = new Client({
     intents: 53608447,
     makeCache: Options.cacheWithLimits({
-        MessageManager: 50, // Limits message cache to 50
+        MessageManager: 50, // Limitar caché de mensajes a 50
     }),
-    messageCacheLifetime: 60, // Duration of message cache in seconds
-    messageSweepInterval: 120 // Interval for cleaning cache in seconds
+    messageCacheLifetime: 60, // Duración del caché de mensajes en segundos
+    messageSweepInterval: 120 // Intervalo de limpieza de caché en segundos
 });
 
-const prefix = "y!";
-const allowedUserId = ['346799501878755342','339869018439548938','123864968461287428','300619060729610258','270681503665618954']
-let maintenanceMode = false; // Variable for maintenance mode
+const allowedUserId = ['346799501878755342','339869018439548938','123864968461287428','300619060729610258','270681503665618954'];
+let maintenanceMode = false;
 const commandQueue = [];
 let isProcessingQueue = false;
 
@@ -43,7 +33,7 @@ const connectDB = async () => {
 
 connectDB();
 
-// Load the list of banned users
+// Cargar lista de usuarios baneados
 const bannedUsersFile = './bannedUsers.json';
 let bannedUsers = [];
 if (fs.existsSync(bannedUsersFile)) {
@@ -52,16 +42,14 @@ if (fs.existsSync(bannedUsersFile)) {
 
 client.once("ready", () => {
     console.log(`${client.user.tag} is online!`);
-    
-    // Verify that the prefix is defined
-    if (typeof prefix === 'undefined') {
-        console.error('Prefix is not defined.');
-        return;
-    }
-
-    // Set bot's status
-    client.user.setActivity(`Use ${prefix}help.`);
+    client.user.setActivity(`Use y!help.`);
 });
+
+// Obtener prefijo de la base de datos o usar prefijo predeterminado
+const getPrefix = async (guildId) => {
+    const prefixData = await Prefix.findOne({ guildId });
+    return prefixData ? prefixData.prefix : 'y!'; // Usa 'y!' como predeterminado
+};
 
 const processQueue = async () => {
     if (isProcessingQueue || commandQueue.length === 0) return;
@@ -72,22 +60,18 @@ const processQueue = async () => {
         const { message, args, commandName } = commandQueue.shift();
 
         try {
-            // Check if the user is banned
             if (bannedUsers.includes(message.author.id)) {
-                await message.reply('You are banned from using this bot.'); // Ensure this is awaited
-                continue; // Skip processing this command
+                await message.reply('You are banned from using this bot.');
+                continue;
             }
 
-            // Check if the user is registered before processing the command
             const isRegistered = await checkUserMiddleware(message);
             if (!isRegistered) continue;
 
-            // Execute the command
             const command = require(`./commands/${commandName}`);
             await command.run(message, args);
 
-            // Control frequency with a small delay
-            await new Promise(resolve => setTimeout(resolve, 500)); // Reduce delay between commands to 500ms
+            await new Promise(resolve => setTimeout(resolve, 500)); // Control de frecuencia
 
         } catch (error) {
             console.error(`Error executing command ${commandName}:`, error);
@@ -98,27 +82,30 @@ const processQueue = async () => {
     isProcessingQueue = false;
 };
 
-// Middleware global for maintenance mode
 const globalMiddleware = async (message, next) => {
     if (maintenanceMode && !allowedUserId.includes(message.author.id)) {
         await message.reply('Maintenance is active, please be patient.');
-        return; // Bloquea la ejecución del comando si no es un usuario autorizado
+        return;
     }
-    next(); // Continúa con la ejecución del comando si no hay mantenimiento o si es un usuario autorizado
+    next();
 };
-// Message handling for commands
+
+// Manejo de mensajes para comandos
 client.on(Events.MessageCreate, async (message) => {
     try {
-        if (message.author.bot || !message.content.toLowerCase().startsWith(prefix)) return;
+        if (message.author.bot) return;
+
+        // Obtener prefijo específico para el servidor
+        const prefix = await getPrefix(message.guild.id);
+
+        if (!message.content.toLowerCase().startsWith(prefix)) return;
 
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
-        // Use middleware for maintenance mode
         await globalMiddleware(message, async () => {
-            // Process commands in parallel using promises
             commandQueue.push({ message, args, commandName });
-            await processQueue(); // Start processing without blocking other commands
+            await processQueue();
         });
 
     } catch (error) {
@@ -127,12 +114,12 @@ client.on(Events.MessageCreate, async (message) => {
     }
 });
 
-// Command to toggle maintenance mode
+// Comando para activar/desactivar el modo de mantenimiento
 client.on(Events.MessageCreate, async (message) => {
     try {
-        // Verificar si el ID del usuario está en el array de usuarios permitidos
         if (!allowedUserId.includes(message.author.id)) return;
 
+        const prefix = await getPrefix(message.guild.id);
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
@@ -150,6 +137,14 @@ client.on(Events.MessageCreate, async (message) => {
     } catch (error) {
         console.error('Error handling maintenance command:', error);
         message.reply('An error occurred while trying to toggle maintenance mode.');
+    }
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    if (error.code === 10062) {
+        console.warn('Ignoring unknown interaction error');
+        return;
     }
 });
 client.login("MTI3MjMwMTk4NTc4OTY0MDg1Nw.G_L-qy.atO4M6nAAgsTW0C8iwAUkAVzKVkyMgJ382G-so")

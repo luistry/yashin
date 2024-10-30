@@ -45,11 +45,17 @@ const inventorySchema = new mongoose.Schema({
         quantity: { type: Number, required: true },
         image: { type: String } // Asegúrate de que el campo `image` esté definido
     }],
-    candy: []
+    candy: [],
+    witch_dust: []
     
 }, { collection: 'inventory' });
 
+const prefixSchema = new mongoose.Schema({
+    guildId: { type: String, required: true, unique: true },
+    prefix: { type: String, default: 'y!' } // Prefijo predeterminado cambiado a "y!"
+});
 
+const Prefix = mongoose.model('Prefix', prefixSchema);
 
 const Inventory = mongoose.model('Inventory', inventorySchema);
 
@@ -1122,5 +1128,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory,addHalloweenCard
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory,addHalloweenCard,Prefix
 };
