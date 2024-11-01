@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const { fetchInventory, updateInventory } = require('./database/database');
+const { fetchInventory, updateInventory,addFrameToInventory, Colors } = require('./database/database');
 
 // Definir ítems para Box_title
 const boxTitles = [
@@ -32,6 +32,23 @@ const boxBanners = [
     { name: 'The Traveler', image: 'https://banners-yashin.b-cdn.net/the%20traveler%20banner.png', type: 'banner' },
     { name: 'The God Of Contracts', image: 'https://banners-yashin.b-cdn.net/morax%20banner.jpeg', type: 'banner' }
 ];
+const boxBannersHalloween = [
+    { name: 'Pumpkin crew', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Pumpkin%20Crew.webp', type: 'banner' },
+    { name: 'Nignt Latern Halloween', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Night%20Lantern%20Halloween.webp', type: 'banner' },
+    { name: 'Hunter Night', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Hunters%20Night.webp', type: 'banner' },
+    { name: 'Vampire Night', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Vampire%20Night%20Out.webp', type: 'banner' },
+    { name: 'Kirbyween', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/kirbyween.webp', type: 'banner' },
+    { name: 'Clover-Like Halloween', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Clover-Like%20Halloween.webp', type: 'banner' },
+    { name: 'my Scary academia', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/My%20Scary%20Academia.webp', type: 'banner' },
+    { name: 'Space witches', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Space%20Witches.webp', type: 'banner' },
+    { name: 'Magical Umi', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Magical%20Umi.webp', type: 'banner' },
+    { name: 'A Butlers Halloween Night.', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/A%20Butlers%20Halloween%20Night.webp', type: 'banner' },
+    { name: 'Poppin Halloween Parade', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Poppin%20Halloween%20Parade.webp', type: 'banner' },
+    { name: 'spooky bride', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Spooky%20Brides.webp', type: 'banner' }
+];
+const boxframeHalloween = [
+    { name: 'Bat Frame ', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/frame/Bat_Frame.webp', type: 'Frame' },
+];
 
 module.exports = {
     name: 'open',
@@ -39,81 +56,99 @@ module.exports = {
     run: async (message, args) => {
         try {
             // Validar si el usuario proporcionó un argumento para el tipo de caja
-            if (!args[0] || (args[0] !== 'titles' && args[0] !== 'banner')) {
-                return await message.channel.send('Please specify whether you want to open a `titles` box or a `banner` box.');
+            const validBoxes = ['titles box', 'banner box', 'halloween banner box', 'halloween frame box'];
+            const boxType = args.join(' ').toLowerCase(); // Obtener el tipo de caja
+
+            if (!boxType || !validBoxes.includes(boxType)) {
+                return await message.channel.send('Please specify whether you want to open a `titles box`, `banner box`, `halloween banner box`, or `halloween frame box`.');
             }
 
-            const boxType = args[0].toLowerCase(); // Obtener el tipo de caja (titles o banner)
             const mentionedUser = message.mentions.users.first() || message.author; // Obtener usuario
-
-            // Obtener el inventario del usuario mencionado
-            const inventory = await fetchInventory(mentionedUser.id);
+            const inventory = await fetchInventory(mentionedUser.id); // Obtener el inventario
 
             if (!inventory) {
                 return await message.channel.send(`No inventory found for ${mentionedUser.username}.`);
             }
 
             // Destructurar campos del inventario
-            let { Box_title, Box_banner, Titles, Banners } = inventory;
+            let { Box_title, Box_banner, Titles, Banners, Halloween_Box_banner, Halloween_frame_box } = inventory;
 
             // Validar si el usuario tiene cajas para abrir
-            if (boxType === 'titles' && (!Box_title || Box_title.length === 0)) {
-                return await message.channel.send('You don\'t have any title boxes to open.');
-            } else if (boxType === 'banner' && (!Box_banner || Box_banner.length === 0)) {
-                return await message.channel.send('You don\'t have any banner boxes to open.');
+            const boxInventoryMap = {
+                'titles box': Box_title,
+                'banner box': Box_banner,
+                'halloween banner box': Halloween_Box_banner,
+                'halloween frame box': Halloween_frame_box
+            };
+
+            if (!boxInventoryMap[boxType] || boxInventoryMap[boxType].length === 0) {
+                return await message.channel.send(`You don't have any ${boxType} to open.`);
             }
 
             // Función para seleccionar un ítem aleatorio
             const getRandomItem = (array) => array[Math.floor(Math.random() * array.length)];
+            let item; // Variable para almacenar el ítem abierto
+            let embed; // Variable para el embed
 
-            // Variables para almacenar el ítem seleccionado y su imagen
-            let selectedItem, imageURL;
+            // Manejo del tipo de caja
+            switch (boxType) {
+                case 'titles box':
+                    item = getRandomItem(boxTitles); // Selecciona un título aleatorio
+                    Titles.push({ name: item.name, image: item.image }); // Agrega el título como objeto al inventario
+                    Box_title[0] -= 1; // Restar de la posición 0
+                    if (Box_title[0] <= 0) Box_title.shift(); // Si llega a cero, eliminar el primer elemento
+                    embed = new EmbedBuilder()
+                        .setTitle(`You opened a Title Box! 🎉`)
+                        .setDescription(`You received: **${item.name}**`)
+                        .setImage(item.image)
+                        .setColor(0x00FF00); // Color verde
+                    break;
 
-            // Si el tipo es 'titles', abrir caja de títulos
-            if (boxType === 'titles') {
-                selectedItem = getRandomItem(boxTitles);
-                imageURL = selectedItem.image;
+                case 'banner box':
+                    item = getRandomItem(boxBanners); // Selecciona un banner aleatorio
+                    Banners.push({ name: item.name, image: item.image }); // Agrega el banner como objeto al inventario
+                    Box_banner[0] -= 1; // Restar de la posición 0
+                    if (Box_banner[0] <= 0) Box_banner.shift(); // Si llega a cero, eliminar el primer elemento
+                    embed = new EmbedBuilder()
+                        .setTitle(`You opened a Banner Box! 🎉`)
+                        .setDescription(`You received: **${item.name}**`)
+                        .setImage(item.image)
+                        .setColor(0x00FF00); // Color verde
+                    break;
 
-                // Agregar el ítem al array de Titles
-                Titles.push({ name: selectedItem.name, image: selectedItem.image, type: selectedItem.type });
+                case 'halloween banner box':
+                    item = getRandomItem(boxBannersHalloween); // Selecciona un banner de Halloween aleatorio
+                    Banners.push({ name: item.name, image: item.image }); // Agrega el banner de Halloween como objeto al inventario
+                    Halloween_Box_banner[0] -= 1; // Restar de la posición 0
+                    if (Halloween_Box_banner[0] <= 0) Halloween_Box_banner.shift(); // Si llega a cero, eliminar el primer elemento
+                    embed = new EmbedBuilder()
+                        .setTitle(`You opened a Halloween Banner Box! 🎉`)
+                        .setDescription(`You received: **${item.name}**`)
+                        .setImage(item.image)
+                        .setColor(0x00FF00); // Color verde
+                    break;
 
-                // Reducir el conteo de cajas de títulos
-                Box_title[0] -= 1;
-                if (Box_title[0] <= 0) {
-                    Box_title.shift();
-                }
-            } 
-            // Si el tipo es 'banner', abrir caja de banners
-            else if (boxType === 'banner') {
-                selectedItem = getRandomItem(boxBanners);
-                imageURL = selectedItem.image;
-
-                // Agregar el ítem al array de Banners
-                Banners.push({ name: selectedItem.name, image: selectedItem.image, type: selectedItem.type });
-
-                // Reducir el conteo de cajas de banners
-                Box_banner[0] -= 1;
-                if (Box_banner[0] <= 0) {
-                    Box_banner.shift();
-                }
+                case 'halloween frame box':
+                    item = getRandomItem(boxframeHalloween); // Selecciona un marco de Halloween aleatorio
+                    await addFrameToInventory(mentionedUser.id, item.name); // Agrega el marco al inventario usando la función
+                    Halloween_frame_box[0] -= 1; // Restar de la posición 0
+                    if (Halloween_frame_box[0] <= 0) Halloween_frame_box.shift(); // Si llega a cero, eliminar el primer elemento
+                    embed = new EmbedBuilder()
+                        .setTitle(`You opened a Halloween Frame Box! 🎉`)
+                        .setDescription(`You received: **${item.name}**`)
+                        .setImage(item.image)
+                        .setColor(0x00FF00); // Color verde
+                    break;
             }
 
-            // Actualizar el inventario
-            await updateInventory(mentionedUser.id, { Box_title, Box_banner, Titles, Banners });
+            // Actualizar inventario en la base de datos
+            await updateInventory(mentionedUser.id, { Box_title, Box_banner, Titles, Banners, Halloween_Box_banner, Halloween_frame_box });
 
-            // Crear y enviar el embed con la información del ítem
-            const embed = new EmbedBuilder()
-                .setColor('#efa94a')
-                .setTitle('Opened Box')
-                .setDescription(`You have opened a ${boxType} box and received: ${selectedItem.name}`)
-                .setImage(imageURL)
-                .setFooter({ text: 'Enjoy your new item!' });
-
+            // Enviar mensaje con el resultado
             await message.channel.send({ embeds: [embed] });
-
-        } catch (err) {
-            console.error('Error executing open command:', err);
-            await message.channel.send('There was an error opening the box.');
+        } catch (error) {
+            console.error('Error al abrir la caja:', error);
+            await message.channel.send('There was an error trying to open the box. Please try again later.');
         }
     }
 };

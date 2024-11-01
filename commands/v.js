@@ -1,49 +1,44 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js'); 
 const { fetchAllInventories } = require('./database/database');
 const Canvas = require('canvas');
 const { createCanvas, loadImage } = require('canvas');
 const fetch = require('node-fetch');
 
+// Función para cargar la imagen
 async function fetchImage(url) {
     if (!/^https?:\/\//i.test(url)) {
         throw new Error('Invalid URL');
     }
-
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error('Failed to fetch image');
     }
-
     return response.buffer();
 }
 
 Canvas.registerFont('./commands/fonts/BebasNeue-Regular.ttf', { family: 'Bebas Neue' });
-
-async function createCardCanvas(character) {
+async function createCardCanvas(character) {  
     const cardWidth = 350;
     const cardHeight = 550;
-
-    // Extraer el frame directamente de la carta y limpiar comillas adicionales si las hay
-    const default_frame = character.default_frame && character.default_frame.replace(/^['"]|['"]$/g, ''); 
-
-    // Crear el canvas principal para la tarjeta
     const canvas = createCanvas(cardWidth, cardHeight);
     const context = canvas.getContext('2d');
+
     context.fillStyle = '#36393F';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Cargar la imagen del personaje si está disponible
+    // Cargar y dibujar imagen del personaje
     if (character.img_url) {
         try {
             const characterImage = await loadImage(character.img_url);
-            context.globalAlpha = 1.0; // Asegurarse de que sea opaco
+            context.globalAlpha = 1.0;
             context.drawImage(characterImage, 10, 10, cardWidth - 20, cardHeight - 20);
         } catch (error) {
             console.error(`Error loading image for character ${character._id}:`, error);
         }
     }
 
-    // Dibujar el frame si está presente y es una URL válida
+    // Dibujar el frame
+    const default_frame = character.default_frame && character.default_frame.replace(/^['"]|['"]$/g, '');
     if (default_frame && /^https?:\/\//i.test(default_frame)) {
         try {
             const frameImg = await loadImage(default_frame);
@@ -51,22 +46,28 @@ async function createCardCanvas(character) {
         } catch (error) {
             console.error(`Error loading frame image from URL ${default_frame}:`, error);
         }
-    } else {
-        console.error('Invalid frame image URL or missing frame:', default_frame);
     }
 
-    // Determinar los colores de los textos según los campos color_letter
-    const colorLetterName = character.color_letter_name || '#000000'; // Default a negro
-    const colorLetterSeries = character.color_letter_series || '#000000'; // Default a negro
-    const colorLetter = character.color_letter || '#000000'; // Default a negro
+    // Determinar colores de texto y ajustar si es el frame especificado
+    const isDarkOrangeFrame = (default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png');
+    const colorLetterName = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_name || '#000000');
+    const colorLetterSeries = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_series || '#000000');
+    const colorLetter = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter || '#000000');
 
-    // Dibujar el número de versión
-    context.font = 'bold 22px "Bebas Neue"';
-    context.fillStyle = colorLetter; // Usar color_letter para el número de versión
-    context.textAlign = 'center';
-    context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
+    // Dibujar el código __v, solo si el frame no es Dark Orange
+    if (!isDarkOrangeFrame) {
+        context.fillStyle = colorLetter;
+        context.font = 'bold 22px "Bebas Neue"';
+        context.textAlign = 'center';
+        context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
+        let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
+        wrapText(context, seriesText, textXPosition, cardHeight - 20, cardWidth - 40, 24);
+        context.fillStyle = colorLetterName;
+        let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
+        context.fillText(characterName, textXPosition, cardHeight - 50);
+    }
 
-    // Dibujar el nombre del personaje con el color correspondiente
+    // Ajustar posición de texto si el frame es Dark Orange y se omite el __v
     context.font = 'bold 30px "Bebas Neue"';
     context.fillStyle = colorLetterName; // Usar color_letter_name para el nombre
     context.textAlign = 'center';
@@ -86,14 +87,11 @@ async function createCardCanvas(character) {
     return canvas;
 }
 
-
-
-// Helper function to wrap text
+// Función auxiliar para envolver texto
 function wrapText(context, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' ');
     let line = '';
     let lineY = y;
-
     for (const word of words) {
         const testLine = line + word + ' ';
         const testWidth = context.measureText(testLine).width;
@@ -109,25 +107,21 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
     return lineY + lineHeight;
 }
 
+
 module.exports = {
     name: 'v',
     description: 'View details of a specific card from the collection',
     async run(message, args) {
         try {
             const cardCode = args.join(' ').trim();
-
-            // Fetch all inventories
             const allInventories = await fetchAllInventories();
-
-            // Find the card across all inventories
             let card = null;
             let cardOwner = null;
 
             for (const inventory of allInventories) {
                 card = inventory.cards.find(c => c.code === cardCode);
                 if (card) {
-                    // Using _id to represent the card owner
-                    cardOwner = inventory._id || 'Unknown'; 
+                    cardOwner = inventory._id || 'Unknown';
                     break;
                 }
             }
@@ -136,20 +130,22 @@ module.exports = {
                 return message.channel.send('Card not found. Please check the code and try again.');
             }
 
+            // Verificar si la propiedad scratch es true y ajustar el valor de __v en consecuencia
+            const __v = card.scratch ? 'Halloween 2024 🎃' : (card.__v !== undefined ? card.__v : 'Unknown');
             const canvas = await createCardCanvas(card);
             const finalImageBuffer = canvas.toBuffer();
             const rarityInitial = card.rarity ? card.rarity.charAt(0).toUpperCase() : 'Unknown';
 
             const embed = new EmbedBuilder()
-                .setColor('#BEC2CB') // Gray color
+                .setColor('#BEC2CB')
                 .setTitle(`Viewing ${card.name}`)
                 .setAuthor({
                     name: `Viewing card`,
                     iconURL: message.author.displayAvatarURL({ format: 'png', dynamic: true }),
                 })
                 .setDescription(
-                    `\`${card.code}\` • \`${card.name}\` • \`${card.series}\` • \`#${card.__v}\` • \`${rarityInitial}\`\n**Card Owner**: <@${cardOwner}>`
-                ) // Displays the owner correctly using _id
+                    `\`${card.code}\` • \`${card.name}\` • \`${card.series}\` • \`${__v}\` • \`${rarityInitial}\`\n**Card Owner**: <@${cardOwner}>`
+                )
                 .setImage('attachment://card.png');
 
             await message.channel.send({

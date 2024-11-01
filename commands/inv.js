@@ -18,7 +18,7 @@ module.exports = {
             }
 
             // Destructuring de los campos relevantes del inventario
-            const { shines, gold, stellar_dust, extra_drop, extra_grab, Frames, moons, SpeedOfReaction, GodofEvasion, FastHands, DivinityAbsolute, Glows, Box_title, Box_banner,candy } = inventory;
+            const { shines, gold, stellar_dust, extra_drop, extra_grab, Frames, moons, SpeedOfReaction, GodofEvasion, FastHands, DivinityAbsolute, Glows, Box_title, Box_banner,candy,witch_dust,Halloween_Box_banner } = inventory;
 
             // Formatear la información de los frames
             let framesDescription = 'No frames found.';
@@ -46,6 +46,9 @@ module.exports = {
             const SpeedofReactiontext = SpeedOfReaction && SpeedOfReaction.length > 0 ? `• Speed Of Reaction • ${SpeedOfReaction.join(', ')} :open_hands:` : null;
             const Glowstext = Glows && Glows.length > 0 ? `• Radiance • ${Glows.join(', ')} :droplet:` : null;
             const Candytext = candy && candy.length > 0 ? `• Candys • ${candy.join(', ')} 🍬` : null;
+            const witchtext = witch_dust && witch_dust.length > 0 ? `• Witch Dust • ${witch_dust.join(', ')}  🧹` : null; 
+            const halloweenboxtext =  Halloween_Box_banner &&  Halloween_Box_banner.length > 0 ? `• Halloween frame box • ${ Halloween_Box_banner.join(', ')}  📦` : null; 
+           
 
             // Crear la lista de items para el embed
             const items = [
@@ -63,6 +66,8 @@ module.exports = {
                 boxTitleText,
                 boxBannerText,
                 Candytext,
+                witchtext,
+                halloweenboxtext,
                 `\n**Frames**:\n${framesDescription}`
             ].filter(Boolean);
 

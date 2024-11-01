@@ -14,15 +14,17 @@ module.exports = {
         }
 
         // Create the email content
-        const mailName = 'Gift for data lost 4/4';
+        const mailName = 'Halloween Event';
         const mailDescription = `
-      Moshi moshi! Yashin here!
+     🎃👻 ¡Moshi moshi! Yashin Here! 👻🎃
 
+Halloween has officially begun! Get ready for a spooktacular season filled with hauntingly fun events, thrilling surprises, and plenty of treats! 🍬🕷️
 
-We deeply regret to inform you that during an update, the creator made an error that resulted in the loss of card data.
-We sincerely apologize for this unfortunate incident and appreciate your understanding during this difficult time.
+Join us in celebrating this eerie time of year, and don’t forget to keep an eye out for special Halloween cards and limited-time activities!
+
+Let the ghostly festivities begin! 🦇🕸️
           **Your Rewards:**
-            - 20 shines ✨ 
+            - 10 shines ✨ 
         `;
 
         // Fetch all user inventories
@@ -49,7 +51,7 @@ We sincerely apologize for this unfortunate incident and appreciate your underst
                 description: mailDescription,
                 Readed: false, // Mark as unread
                 rewards: {
-                   shines: 20
+                   shines: 15
                 }
             };
 

@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js'); 
 const { fetchInventory } = require('./database/database');
 
 module.exports = {
@@ -79,8 +79,14 @@ module.exports = {
                     const code = card.code || 'Unknown Code';
                     const name = card.name || 'Unknown Name';
                     const series = card.series || 'Unknown Series';
-                    const __v = card.__v !== undefined ? card.__v : 'Unknown';
                     const rarityInitial = card.rarity ? card.rarity.charAt(0).toUpperCase() : 'Unknown';
+
+                    // Verificar si scratch es true y el default_frame es el especificado
+                    const __v = (card.scratch && card.default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png') 
+                        ? 'Halloween 2024 🎃' 
+                        : card.__v !== undefined 
+                        ? card.__v 
+                        : 'Unknown';
 
                     const tagPrefix = card.tagName ? String.fromCodePoint(card.tagName.codePointAt(0)) : '⬛';
 

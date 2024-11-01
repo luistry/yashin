@@ -16,7 +16,7 @@ module.exports = {
                 { name: 'Utility :thumbsup:', value: '`Avatar`, `Ping`, `Help`,`invite`', inline: true },
                 { name: 'Basic :book:', value: '`Cooldown`, `Drop`, `Daily`, `Shop`, `Frameshop`, `Vote`,`tags`,`tagcreate`,`tagdelete`,`Give`', inline: true },
                 { name: 'Profiles :frame_photo: ', value: '`profile`, `open`, `banners`, `titles`, `banner`, `title`', inline: true },
-                { name: 'Settings :gear:', value: '`Register`, `Reminder`,`info`,`Referer`', inline: true }
+                { name: 'Settings :gear:', value: '`Register`, `Reminder`,`info`,`Referer`,`Setprefix`,`Event`', inline: true }
             )
             .setFooter({ text: `Requested by ${member.user.username}`, iconURL: member.user.displayAvatarURL() });
 

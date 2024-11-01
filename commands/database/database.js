@@ -46,7 +46,10 @@ const inventorySchema = new mongoose.Schema({
         image: { type: String } // Asegúrate de que el campo `image` esté definido
     }],
     candy: [],
-    witch_dust: []
+    witch_dust: [],
+    scratch: [],
+    Halloween_Box_banner: [],
+    Halloween_frame_box: []
     
 }, { collection: 'inventory' });
 

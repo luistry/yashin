@@ -1,23 +1,26 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageAttachment } = require('discord.js');
-const { fetchInventory, updateInventory, fetchCharacterById } = require('./database/database');
-const { createCanvas, loadImage } = require('canvas'); // Ensure you have canvas installed
+const { EmbedBuilder, ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { fetchInventory, updateInventory, addCardToInventory, AnimeCharacter } = require('./database/database');
+const { createCanvas, loadImage } = require('canvas');
 const Canvas = require('canvas');
+
 Canvas.registerFont('./commands/fonts/BebasNeue-Regular.ttf', { family: 'Bebas Neue' });
 
-// Function to create card canvas
+function generateRandomCode(length) {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    return Array.from({ length }, () => characters.charAt(Math.floor(Math.random() * characters.length))).join('');
+}
+
 async function createCardCanvas(character) {
     const cardWidth = 350;
     const cardHeight = 550;
-    const default_frame = character.default_frame?.replace(/^['"]|['"]$/g, ''); 
+    const halloweenFrameUrl = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png';
 
     const canvas = createCanvas(cardWidth, cardHeight);
     const context = canvas.getContext('2d');
 
-    // Fill background
     context.fillStyle = '#36393F';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Load character image
     if (character.img_url) {
         try {
             const characterImage = await loadImage(character.img_url);
@@ -27,32 +30,24 @@ async function createCardCanvas(character) {
         }
     }
 
-    // Load frame image
-    if (default_frame && /^https?:\/\//i.test(default_frame)) {
-        try {
-            const frameImg = await loadImage(default_frame);
-            context.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
-        } catch (error) {
-            console.error(`Error loading frame image from URL ${default_frame}:`, error);
-        }
+    try {
+        const frameImg = await loadImage(halloweenFrameUrl);
+        context.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
+    } catch (error) {
+        console.error(`Error loading Halloween frame image from URL ${halloweenFrameUrl}:`, error);
     }
 
-    // Draw text
-    context.fillStyle = character.color_letter || '#000000';
-    context.font = 'bold 22px "Bebas Neue"';
-    context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
+    // Cambiar color del texto a blanco y ajustar posición del nombre y serie
+    context.fillStyle = '#FFFFFF';
 
-    context.fillStyle = character.color_letter_name || '#000000';
-    context.font = 'bold 30px "Bebas Neue"';
-    context.fillText(character.name.slice(0, 14) + (character.name.length > 15 ? '-' : ''), cardWidth / 2, cardHeight - 50);
+    context.font = 'bold 25px "Bebas Neue"';
+    context.fillText(character.name.slice(0, 14) + (character.name.length > 15 ? '-' : ''), 90, cardHeight - 50);
 
-    context.fillStyle = character.color_letter_series || '#000000';
-    wrapText(context, character.series.slice(0, 15) + (character.series.length > 16 ? '-' : ''), cardWidth / 2, cardHeight - 20, cardWidth - 40, 24);
+    wrapText(context, character.series.slice(0, 15) + (character.series.length > 16 ? '-' : ''), 90, cardHeight - 20, cardWidth - 40, 24);
 
-    return canvas;
+    return canvas.toBuffer();
 }
 
-// Helper function to wrap text
 function wrapText(context, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' ');
     let line = '';
@@ -71,109 +66,176 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
     context.fillText(line, x, lineY);
 }
 
-// Function to get a random rarity
-function getRandomRarity() {
-    const rarities = ['Bad', 'Good', 'Mid', 'Perfect', 'Legendary'];
-    return rarities[Math.floor(Math.random() * rarities.length)];
+async function createPackCanvas(cards) {
+    const cardWidth = 350;
+    const cardHeight = 550;
+    const spacing = 20;
+    const maxCards = 5;  // Limitar a 5 cartas
+    const canvasWidth = (cardWidth + spacing) * maxCards;
+    const canvasHeight = cardHeight;
+
+    const canvas = createCanvas(canvasWidth, canvasHeight);
+    const context = canvas.getContext('2d');
+
+    for (let i = 0; i < Math.min(cards.length, maxCards); i++) {
+        const character = cards[i];
+        const cardCanvas = await createCardCanvas(character);
+        const cardImage = await loadImage(cardCanvas);
+        context.drawImage(cardImage, i * (cardWidth + spacing), 0, cardWidth, cardHeight);
+    }
+
+    return canvas.toBuffer();
 }
 
-// Function to generate a random code
-function generateRandomCode(length) {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
+async function getRandomCharacterIds() {
+    const ids = [];
+    while (ids.length < 5) {
+        const randomId = Math.floor(Math.random() * (200200 - 200000 + 1)) + 200000;
+        if (!ids.includes(randomId)) {
+            ids.push(randomId);
+        }
     }
-    return result;
+    return ids;
+}
+
+async function getValidCharacter(id) {
+    return await AnimeCharacter.findById(id) || null;
+}
+
+async function getValidCharacters(ids) {
+    const validCharacters = [];
+    for (const id of ids) {
+        const character = await getValidCharacter(id);
+        if (character) {
+            validCharacters.push(character);
+        }
+    }
+    return validCharacters;
 }
 
 module.exports = {
     name: 'pack',
-    description: 'Open a pack and receive a random Halloween card if you have at least 1 witch_dust.',
+    description: 'Open a pack and receive random Halloween cards if you have at least 1 witch_dust.',
     async run(message) {
         try {
-            // Fetch the user's inventory
             const inventory = await fetchInventory(message.author.id);
             const witchDustCount = inventory?.witch_dust || 0;
 
-            // Check if the user has enough witch dust
             if (witchDustCount < 1) {
                 return message.channel.send('❗ **You need at least 1 Witch Dust to open a pack!**');
             }
 
-            // Deduct witch dust
             inventory.witch_dust -= 1;
 
-            // Generate random card ID for Halloween cards (200000 to 200100)
-            const cardId = Math.floor(Math.random() * 101) + 200000;
+            const randomIds = await getRandomCharacterIds();
+            const randomCards = await getValidCharacters(randomIds);
 
-            // Fetch character details
-            const character = await fetchCharacterById(cardId);
-            if (!character) {
-                return message.channel.send('❌ **Character not found!**');
+            while (randomCards.length < 5) {
+                const moreIds = await getRandomCharacterIds();
+                const moreCards = await getValidCharacters(moreIds);
+                randomCards.push(...moreCards);
             }
 
-            // Create new card object
-            const newCard = {
-                id: cardId,
-                name: character.name || `Halloween Card #${cardId}`,
-                __v: character.__v || 0,
-                rarity: getRandomRarity(), // Assign random rarity
-                code: generateRandomCode(8) // Generate random code of length 8
-            };
+            // Función para asignar una rareza aleatoria
+            const rarityLevels = ['bad', 'mid', 'good', 'perfect', 'legendary'];
+            function assignRandomRarity() {
+                return rarityLevels[Math.floor(Math.random() * rarityLevels.length)];
+            }
 
-            // Add new card to inventory
-            inventory.cards.push(newCard);
+            // Función para generar un código de carta entre 3 y 7 caracteres
+            function generateRandomCode(length) {
+                const codeLength = Math.floor(Math.random() * (7 - 3 + 1)) + 3;
+                const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                let code = '';
+                for (let i = 0; i < codeLength; i++) {
+                    code += characters.charAt(Math.floor(Math.random() * characters.length));
+                }
+                return code;
+            }
 
-            // Update inventory in database
-            await updateInventory(message.author.id, inventory);
+            randomCards.forEach(card => {
+                card.code = generateRandomCode();
+                card.rarity = assignRandomRarity();
+            });
 
-            // Create card image
-            const canvas = await createCardCanvas(character);
-            const attachment = new MessageAttachment(canvas.toBuffer(), 'halloween_card.png');
+            const packCanvasBuffer = await createPackCanvas(randomCards);
+            const attachment = new AttachmentBuilder(packCanvasBuffer, { name: 'pack.png' });
 
-            // Create and send an embed message
             const embed = new EmbedBuilder()
-                .setTitle('🎉 You opened a Halloween Pack! 🎉')
-                .setDescription(`✨ You received: **${newCard.name}** (ID: **${newCard.id}**)\n**Rarity:** ${newCard.rarity}\n**Code:** ${newCard.code}`)
+                .setTitle('🎃 Choose Your Halloween Card 🎃')
+                .setDescription('You received 5 random cards! Select one to add to your inventory.')
                 .setColor('#FF4500')
-                .setImage('attachment://halloween_card.png')
-                .setTimestamp()
-                .setFooter({ text: `Witch Dust Remaining: ${inventory.witch_dust}`, iconURL: message.author.displayAvatarURL() });
+                .setImage('attachment://pack.png')
+                .setTimestamp();
 
-            const sentMessage = await message.channel.send({ embeds: [embed], files: [attachment] });
+            const actionRow = new ActionRowBuilder();
+            const emojiList = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
-            // React to the message
-            await sentMessage.react('🎊');
-            await sentMessage.react('🃏');
-
-            // Button to open another pack
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('open_another_pack')
-                        .setLabel('Open Another Pack')
-                        .setStyle(ButtonStyle.Primary)
-                );
-
-            await message.channel.send({ content: 'Want to open another pack?', components: [row] });
-
-            // Handle button interactions
-            const filter = (i) => i.customId === 'open_another_pack' && i.user.id === message.author.id;
-            const collector = message.channel.createMessageComponentCollector({ filter, time: 60000 });
-
-            collector.on('collect', async (i) => {
-                await this.run(i.message);
-                await i.deferUpdate();
+            randomCards.forEach((card, index) => {
+                const emoji = emojiList[index];
+                if (emoji) {
+                    const button = new ButtonBuilder()
+                        .setCustomId(`select_card_${index}`)
+                        .setEmoji(emoji)
+                        .setStyle(ButtonStyle.Primary);
+                    actionRow.addComponents(button);
+                }
             });
 
-            collector.on('end', () => {
-                message.channel.send('⏳ Time is up! You can open more packs anytime!');
+            const messageWithCards = await message.channel.send({
+                embeds: [embed],
+                files: [attachment],
+                components: [actionRow],
             });
 
+            const filter = (i) => i.user.id === message.author.id;
+            const collector = messageWithCards.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+
+            collector.on('collect', async (interaction) => {
+                const selectedCardIndex = parseInt(interaction.customId.split('_')[2]);
+                const selectedCard = randomCards[selectedCardIndex];
+
+                await AnimeCharacter.findByIdAndUpdate(selectedCard._id, { $inc: { __v: 1 } });
+
+                // Agregar la carta seleccionada al array `cards` del inventario con `default_frame` y rareza aleatoria
+                inventory.cards.push({
+                    _id: selectedCard._id,
+                    name: selectedCard.name,
+                    series: selectedCard.series,
+                    img_url: selectedCard.img_url,
+                    rarity: selectedCard.rarity,
+                    code: selectedCard.code,
+                    __v: selectedCard.__v,
+                    packed_on: new Date(),
+                    grabbed_by: message.author.id,
+                    channel_id: message.channel.id,
+                    guild_id: message.guild.id,
+                    default_frame: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png',
+                    morph_apply: "",
+                    last_morph: "",
+                    color_letter_name: "",
+                    last_color_letter_name: "",
+                    last_color_letter_series: "",
+                    color_letter_series: "",
+                    last_color_letter: "",
+                    color_letter: "",
+                    scratch: true,
+                    event: "Halloween 2024"
+                });
+
+                await updateInventory(message.author.id, inventory);
+
+                await interaction.reply(`✨ **You selected:** ${selectedCard.name} (Rarity: ${selectedCard.rarity}). It's now in your inventory!`);
+            });
+
+            collector.on('end', (collected) => {
+                if (collected.size === 0) {
+                    message.channel.send('❗ **Time is up! You didn\'t select a card.**');
+                }
+            });
         } catch (error) {
-            console.error('Error opening pack:', error);
-            message.channel.send('❌ An error occurred while trying to open the pack.');
+            console.error('Error in pack command:', error);
+            message.channel.send('❗ **An error occurred while processing your request. Please try again later.**');
         }
-    }
+    },
 };
