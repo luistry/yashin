@@ -201,7 +201,8 @@ function initializeTradeData(authorId, targetId) {
             divinityAbsolute: 0,     // Añadido
             glows: 0,                // Añadido
             extragrab: 0,            // Añadido
-            extradrop: 0,           // Añadido
+            extradrop: 0, 
+            candy: 0,          // Añadido
             frames: [],              // Añadido (manejo de frames)
             accepted: false,
             confirmed: false
@@ -215,7 +216,8 @@ function initializeTradeData(authorId, targetId) {
             divinityAbsolute: 0,     // Añadido
             glows: 0,                // Añadido
             extragrab: 0,            // Añadido
-            extradrop: 0,            // Añadido
+            extradrop: 0,    
+            candy: 0,          // Añadido
             frames: [],              // Añadido (manejo de frames)
             accepted: false,
             confirmed: false
@@ -387,7 +389,7 @@ async function setupMessageCollector(message, tradeData, targetUser, authorInven
 // Parse user trade input
 function parseTradeInput(content) {
     // Regex for resources including spaces, and card codes
-    const resourceRegex = /(\d+)\s*(shines|moons|cards|stellar\s*dust|gold|divinity\s*absolute|glows|extra\s*grab|extra\s*drop|frames)/i;
+    const resourceRegex = /(\d+)\s*(shines|moons|candy|cards|stellar\s*dust|gold|divinity\s*absolute|glows|extra\s*grab|extra\s*drop|frames)/i;
     const cardRegex = /([a-zA-Z0-9]{3,7})/; // Regex for card codes with 3-7 characters
 
     const matchResource = content.match(resourceRegex);

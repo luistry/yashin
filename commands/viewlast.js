@@ -24,63 +24,62 @@ Canvas.registerFont('./commands/fonts/BebasNeue-Regular.ttf', { family: 'Bebas N
 async function createCardCanvas(character) {
     const cardWidth = 350;
     const cardHeight = 550;
-
-    // Load the frame image
-    const frameImage = await fetchImage(frameImageUrl);
-
-    // Create a temporary canvas for the frame
-    const frameCanvas = createCanvas(cardWidth, cardHeight);
-    const frameContext = frameCanvas.getContext('2d');
-    const frameImg = await loadImage(frameImage);
-    frameContext.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
-
-    // Create the main canvas for the card
     const canvas = createCanvas(cardWidth, cardHeight);
     const context = canvas.getContext('2d');
+
     context.fillStyle = '#36393F';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw the character image if available
+    // Load and draw character image
     if (character.img_url) {
         try {
             const characterImage = await loadImage(character.img_url);
-            context.globalAlpha = 1.0; // Ensure full opacity
+            context.globalAlpha = 1.0;
             context.drawImage(characterImage, 10, 10, cardWidth - 20, cardHeight - 20);
         } catch (error) {
             console.error(`Error loading image for character ${character._id}:`, error);
         }
     }
 
-    // Draw the frame with transparency over the card
-    context.drawImage(frameCanvas, 0, 0, cardWidth, cardHeight);
+    // Draw the frame
+    const default_frame = character.default_frame && character.default_frame.replace(/^['"]|['"]$/g, '');
+    if (default_frame && /^https?:\/\//i.test(default_frame)) {
+        try {
+            const frameImg = await loadImage(default_frame);
+            context.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
+        } catch (error) {
+            console.error(`Error loading frame image from URL ${default_frame}:`, error);
+        }
+    }
 
-    // Draw the version number
+    // Determine text colors based on frame type
+    const isDarkOrangeFrame = (default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png');
+    const colorLetterName = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_name || '#000000');
+    const colorLetterSeries = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_series || '#000000');
+    const colorLetter = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter || '#000000');
+
+    // Draw the version number and character name
+    context.fillStyle = colorLetter;
     context.font = 'bold 22px "Bebas Neue"';
-    context.fillStyle = '#000000'; // Black text
     context.textAlign = 'center';
-    context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
+    if (!isDarkOrangeFrame) {
+        context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
+    }
 
-    // Draw the character name
-    context.font = 'bold 30px "Bebas Neue"';
-    context.fillStyle = '#000000'; // Black text
-    context.textAlign = 'center';
-
-    let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
-    const nameY = cardHeight - 50; // Adjusted Y position for the name
+    context.fillStyle = colorLetterName;
+    const characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
+    const nameY = cardHeight - 50;
     context.fillText(characterName, cardWidth / 2, nameY);
 
-    // Draw the series name
-    context.font = '24px "Bebas Neue"';
-    context.fillStyle = '#000000'; // Black text
-    let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
-
-    const seriesY = nameY + 30; // Ensure it doesn't overlap with the name
-    wrapText(context, seriesText, cardWidth / 2, seriesY, cardWidth - 40, 24);
+    // Draw series name
+    context.fillStyle = colorLetterSeries;
+    const seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
+    wrapText(context, seriesText, cardWidth / 2, nameY + 30, cardWidth - 40, 24);
 
     return canvas;
 }
 
-// Helper function para el ajuste del texto
+// Helper function to wrap text
 function wrapText(context, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' ');
     let line = '';
@@ -116,20 +115,23 @@ module.exports = {
                 return message.channel.send('You don\'t have any cards in your collection.');
             }
 
-            const card = cards[cards.length - 1];
+            const card = cards[cards.length - 1]; // Get the last card
 
             const canvas = await createCardCanvas(card);
             const finalImageBuffer = canvas.toBuffer();
-   const rarityInitial = card.rarity ? card.rarity.charAt(0).toUpperCase() : 'Unknown';
+            const rarityInitial = card.rarity ? card.rarity.charAt(0).toUpperCase() : 'Unknown';
+            const __v = card.scratch ? 'Halloween 2024 🎃' : (card.__v !== undefined ? card.__v : 'Unknown');
+
             const embed = new EmbedBuilder()
-                .setColor('#36393F') // Gray color
+                .setColor('#BEC2CB')
                 .setTitle(`Viewing ${card.name}`)
                 .setAuthor({
-                    name: `Viewing a card of ${message.author.username}`,
-                    iconURL: message.author.displayAvatarURL({ format: 'png', dynamic: true, size: 128 })
+                    name: `Viewing card`,
+                    iconURL: message.author.displayAvatarURL({ format: 'png', dynamic: true }),
                 })
-               .setDescription(`\`${card.code}\` • \`${card.name}\` • \`${card.series}\` • \`#${card.__v}\` • \`${rarityInitial}\``)
-
+                .setDescription(
+                    `\`${card.code}\` • \`${card.name}\` • \`${card.series}\` • \`${__v}\` • \`${rarityInitial}\``
+                )
                 .setImage('attachment://card.png')
                 .setTimestamp();
 
@@ -137,7 +139,6 @@ module.exports = {
                 embeds: [embed],
                 files: [{ attachment: finalImageBuffer, name: 'card.png' }]
             });
-
         } catch (error) {
             console.error('Error fetching inventory or generating image:', error);
             message.channel.send('An error occurred while trying to view the card.');

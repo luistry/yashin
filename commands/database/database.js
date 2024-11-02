@@ -788,19 +788,23 @@ async function addHalloweenCard(name, series, img_url) {
 
 async function editAnimeCharacterImage(name, series, new_img_url) {
     try {
-        // Search for the character by name and series
-        const character = await AnimeCharacter.findOne({ name: name, series: series }).exec();
+        // Buscar el personaje por nombre y serie, excluyendo aquellos cuyo campo "event" sea "Halloween 2024"
+        const character = await AnimeCharacter.findOne({
+            name: name,
+            series: series,
+            $or: [{ event: { $ne: "Halloween 2024" } }, { event: { $exists: false } }]
+        }).exec();
 
-        // If the character is not found, log an error
+        // Si no se encuentra el personaje, registrar un error
         if (!character) {
-            console.log(`Character with name "${name}" from the series "${series}" not found.`);
+            console.log(`Character with name "${name}" from the series "${series}" not found or has an event property set to "Halloween 2024".`);
             return;
         }
 
-        // Update only the img_url field
+        // Actualizar solo el campo img_url
         character.img_url = new_img_url;
 
-        // Save the changes to the database
+        // Guardar los cambios en la base de datos
         await character.save();
 
         console.log(`Character "${name}" image updated to: ${new_img_url}`);
@@ -808,6 +812,7 @@ async function editAnimeCharacterImage(name, series, new_img_url) {
         console.error('Error updating the character image:', error);
     }
 }
+
 //
 
  // Import your AnimeCharacter model

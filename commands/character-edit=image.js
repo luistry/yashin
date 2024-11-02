@@ -3,7 +3,6 @@ const { editAnimeCharacterImage, AnimeCharacter } = require('./database/database
 const AWS = require('aws-sdk');
 const axios = require('axios');
 
-// Authorized user IDs
 const authorizedUserIds = [
     '346799501878755342',
     '123864968461287428',
@@ -22,10 +21,10 @@ const s3 = new AWS.S3({
     endpoint: spacesEndpoint,
     accessKeyId: 'DO00NMRCRGM8X7MRBAAY',
     secretAccessKey: '0cvxIoWPHGCE94G0UUWw5xe6UXUDe2o903N7AKBLsTg',
-    region: 'nyc3' // Asegúrate de que esta región sea correcta
+    region: 'nyc3'
 });
 
-const SPACE_NAME = 'yashin'; // El nombre de tu espacio en Digital Ocean
+const SPACE_NAME = 'yashin';
 
 module.exports = {
     name: 'character-edit=image',
@@ -51,26 +50,24 @@ module.exports = {
 
             const characters = await AnimeCharacter.find({
                 name: new RegExp(name, 'i'),
-                series: new RegExp(series, 'i')
+                series: new RegExp(series, 'i'),
+                $or: [{ event: { $ne: "Halloween 2024" } }, { event: { $exists: false } }]
             }).limit(15);
 
             if (characters.length === 0) {
-                return await message.channel.send(`Character with name "${name}" from the series "${series}" not found.`);
+                return await message.channel.send(`Character with name "${name}" from the series "${series}" not found or has an event property set to "Halloween 2024".`);
             }
 
             if (characters.length > 1) {
-                // Maneja múltiples personajes si es necesario
-            } else {
-                const character = characters[0];
-
-                // Verificar si la nueva URL es la misma que la actual
-                if (character.img_url === new_img_url) {
-                    return await message.channel.send('The new image URL is the same as the current one. Please provide a different URL.');
-                }
-
-                await handleCharacterEdit(character, new_img_url, message, notificationChannelId);
+                return await message.channel.send('Multiple characters found. Please specify more details.');
             }
 
+            const character = characters[0];
+            if (character.img_url === new_img_url) {
+                return await message.channel.send('The new image URL is the same as the current one. Please provide a different URL.');
+            }
+
+            await handleCharacterEdit(character, new_img_url, message, notificationChannelId);
         } catch (err) {
             console.error('Error editing character image:', err);
             await message.channel.send('There was an error editing the character image in the database.');
@@ -83,9 +80,9 @@ async function handleCharacterEdit(character, new_img_url, message, notification
         .setColor('#FFA500')
         .setTitle('Character Image Edit Preview')
         .setDescription(`**Name**: ${character.name}\n**Series**: ${character.series}`)
-        .setImage(character.img_url) // Imagen actual
+        .setImage(character.img_url)
         .addFields({ name: '➔', value: 'New Image', inline: true })
-        .setThumbnail(new_img_url) // Nueva imagen
+        .setThumbnail(new_img_url)
         .setTimestamp();
 
     const checkoutButton = new ButtonBuilder()
@@ -109,12 +106,11 @@ async function handleCharacterEdit(character, new_img_url, message, notification
     collector.on('collect', async (interaction) => {
         if (interaction.customId === 'checkout') {
             try {
-                // Generar nombre de archivo con el nombre, la serie y un timestamp para evitar caché
                 const timestamp = Date.now();
                 const filename = `${character.name.replace(/\s+/g, '_')}-${character.series.replace(/\s+/g, '_')}-${timestamp}.jpg`;
-
                 const uploadedUrl = await uploadImageToDigitalOcean(new_img_url, filename);
-                await editAnimeCharacterImage(character.name, character.series, uploadedUrl); // Actualizar con la URL subida
+
+                await editAnimeCharacterImage(character.name, character.series, uploadedUrl);
 
                 const confirmationEmbed = new EmbedBuilder()
                     .setColor('#00FF00')
@@ -147,26 +143,21 @@ async function handleCharacterEdit(character, new_img_url, message, notification
 
 async function uploadImageToDigitalOcean(imageUrl, filename) {
     try {
-        // Obtener la imagen de la URL proporcionada
         const response = await axios({
             method: 'get',
             url: imageUrl,
             responseType: 'arraybuffer'
         });
 
-        // Preparar los parámetros de subida, con el nombre único para evitar caché
         const uploadParams = {
             Bucket: SPACE_NAME,
             Key: filename,
             Body: response.data,
-            ACL: 'public-read', // Mantener acceso público
-            ContentType: 'image/jpeg' // Verificar que sea imagen JPEG
+            ACL: 'public-read',
+            ContentType: 'image/jpeg'
         };
 
-        // Subir la imagen y sobrescribir la existente
         const data = await s3.upload(uploadParams).promise();
-
-        // Retornar la URL completa del archivo subido (la misma URL será usada para reemplazar la imagen)
         return `https://yashin.nyc3.cdn.digitaloceanspaces.com/${filename}`;
     } catch (error) {
         console.error('Error uploading image to Digital Ocean:', error);
@@ -174,7 +165,6 @@ async function uploadImageToDigitalOcean(imageUrl, filename) {
     }
 }
 
-// Función para validar URLs
 function isValidUrl(urlString) {
     try {
         const url = new URL(urlString);

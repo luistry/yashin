@@ -389,10 +389,10 @@ async function createCardCanvas(characters, userId) {
         let frameImage;
         try {
             if (character._id >= 200000) { // Comprobar si la ID está en el rango de Halloween
-                console.log(`Using Halloween frame for character: ${character.name}`);
+            
                 frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png', maxRetries);
             } else {
-                console.log(`Using default frame for character: ${character.name}`);
+          
                 frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png', maxRetries);
             }
         } catch (error) {
