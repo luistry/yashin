@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const { fetchInventory, updateInventory,addFrameToInventory, Colors } = require('./database/database');
+const { fetchInventory, updateInventory,addFrame, Colors } = require('./database/database');
 
 // Definir ítems para Box_title
 const boxTitles = [
@@ -70,7 +70,7 @@ module.exports = {
                 return await message.channel.send(`No inventory found for ${mentionedUser.username}.`);
             }
 
-            // Destructurar campos del inventario
+            // Desestructurar campos del inventario
             let { Box_title, Box_banner, Titles, Banners, Halloween_Box_banner, Halloween_frame_box } = inventory;
 
             // Validar si el usuario tiene cajas para abrir
@@ -128,17 +128,20 @@ module.exports = {
                         .setColor(0x00FF00); // Color verde
                     break;
 
-                case 'halloween frame box':
-                    item = getRandomItem(boxframeHalloween); // Selecciona un marco de Halloween aleatorio
-                    await addFrameToInventory(mentionedUser.id, item.name); // Agrega el marco al inventario usando la función
-                    Halloween_frame_box[0] -= 1; // Restar de la posición 0
-                    if (Halloween_frame_box[0] <= 0) Halloween_frame_box.shift(); // Si llega a cero, eliminar el primer elemento
-                    embed = new EmbedBuilder()
-                        .setTitle(`You opened a Halloween Frame Box! 🎉`)
-                        .setDescription(`You received: **${item.name}**`)
-                        .setImage(item.image)
-                        .setColor(0x00FF00); // Color verde
-                    break;
+                    case 'halloween frame box':
+                        item = getRandomItem(boxframeHalloween); // Selecciona un marco de Halloween aleatorio
+                        // Llamada a addFrame para agregar el marco al inventario
+                        await addFrame(mentionedUser.id, item.name, 1, item.image); // Pasamos item.image como parámetro
+                        Halloween_frame_box[0] -= 1; // Restar de la posición 0
+                        if (Halloween_frame_box[0] <= 0) Halloween_frame_box.shift(); // Si llega a cero, eliminar el primer elemento
+                        embed = new EmbedBuilder()
+                            .setTitle(`You opened a Halloween Frame Box! 🎉`)
+                            .setDescription(`You received: **${item.name}**`)
+                            .setImage(item.image)
+                            .setColor(0x00FF00); // Color verde
+                        break;
+                    
+                    
             }
 
             // Actualizar inventario en la base de datos

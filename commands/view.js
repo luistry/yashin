@@ -54,38 +54,47 @@ async function createCardCanvas(character) {
     const colorLetterSeries = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_series || '#000000');
     const colorLetter = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter || '#000000');
 
-    // Dibujar el código __v, solo si el frame no es Dark Orange
+    // Definir textXPosition como la posición horizontal central del card
+    const textXPosition = cardWidth / 2;
+
+    // Si el frame no es Dark Orange, dibujar el __v, nombre y serie
     if (!isDarkOrangeFrame) {
         context.fillStyle = colorLetter;
         context.font = 'bold 22px "Bebas Neue"';
         context.textAlign = 'center';
         context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
+        
         let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
         wrapText(context, seriesText, textXPosition, cardHeight - 20, cardWidth - 40, 24);
+        
         context.fillStyle = colorLetterName;
         let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
         context.fillText(characterName, textXPosition, cardHeight - 50);
     }
 
     // Ajustar posición de texto si el frame es Dark Orange y se omite el __v
-    context.font = 'bold 30px "Bebas Neue"';
-    context.fillStyle = colorLetterName; // Usar color_letter_name para el nombre
-    context.textAlign = 'center';
+    if (isDarkOrangeFrame) {
+        // Solo dibujar el nombre y la serie una vez, si el frame es Dark Orange
+        context.font = 'bold 30px "Bebas Neue"';
+        context.fillStyle = colorLetterName; // Usar color_letter_name para el nombre
+        context.textAlign = 'center';
 
-    let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
-    const nameY = cardHeight - 50; // Posición ajustada para el nombre
-    context.fillText(characterName, cardWidth / 2, nameY);
+        let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
+        const nameY = cardHeight - 50; // Posición ajustada para el nombre
+        context.fillText(characterName, textXPosition, nameY);
 
-    // Dibujar el nombre de la serie con el color correspondiente
-    context.font = '24px "Bebas Neue"';
-    context.fillStyle = colorLetterSeries; // Usar color_letter_series para la serie
-    let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
+        // Dibujar el nombre de la serie con el color correspondiente
+        context.font = '24px "Bebas Neue"';
+        context.fillStyle = colorLetterSeries; // Usar color_letter_series para la serie
+        let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
 
-    const seriesY = nameY + 30; // Asegurarse de que no se superponga con el nombre
-    wrapText(context, seriesText, cardWidth / 2, seriesY, cardWidth - 40, 24);
+        const seriesY = nameY + 30; // Asegurarse de que no se superponga con el nombre
+        wrapText(context, seriesText, textXPosition, seriesY, cardWidth - 40, 24);
+    }
 
     return canvas;
 }
+
 
 // Función auxiliar para envolver texto
 function wrapText(context, text, x, y, maxWidth, lineHeight) {

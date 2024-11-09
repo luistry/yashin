@@ -20,33 +20,104 @@ Canvas.registerFont('./commands/fonts/BebasNeue-Regular.ttf', { family: 'Bebas N
 
 // Función para crear el lienzo de la carta
 async function createCardCanvas(card) {
-    const canvas = createCanvas(400, 600); // Ajusta el tamaño según sea necesario
+    const cardWidth = 350;
+    const cardHeight = 550;
+    const canvas = createCanvas(cardWidth, cardHeight);
     const context = canvas.getContext('2d');
 
-    // Cargar imagen de fondo
-    const backgroundImage = await fetchImage(card.default_frame || 'default_background_url.png');
-    context.drawImage(await loadImage(backgroundImage), 0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#36393F';
+    context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Cargar y dibujar la imagen del personaje
+    // Cargar y dibujar imagen del personaje
     if (card.img_url) {
         try {
             const characterImage = await loadImage(card.img_url);
-            context.globalAlpha = 1.0; // Asegurarse de que la opacidad esté al 100%
-            context.drawImage(characterImage, 10, 10, 380, 580); // Ajusta la posición y el tamaño según sea necesario
+            context.globalAlpha = 1.0;
+            context.drawImage(characterImage, 10, 10, cardWidth - 20, cardHeight - 20);
         } catch (error) {
             console.error(`Error loading image for character ${card._id}:`, error);
         }
     }
 
-    // Añadir texto
-    context.fillStyle = 'white';
-    context.font = '30px "Bebas Neue"'; // Usar la fuente registrada
-    context.fillText(card.name, 20, 450); // Nombre de la carta
-    context.fillText(`#${card.__v}`, 20, 500); // Valor de la carta
+    // Dibujar el frame
+    const default_frame = card.default_frame && card.default_frame.replace(/^['"]|['"]$/g, '');
+    if (default_frame && /^https?:\/\//i.test(default_frame)) {
+        try {
+            const frameImg = await loadImage(default_frame);
+            context.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
+        } catch (error) {
+            console.error(`Error loading frame image from URL ${default_frame}:`, error);
+        }
+    }
+
+    // Determinar colores de texto y ajustar si es el frame especificado
+    const isDarkOrangeFrame = (default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png');
+    const colorLetterName = isDarkOrangeFrame ? '#FFFFFF' : (card.color_letter_name || '#000000');
+    const colorLetterSeries = isDarkOrangeFrame ? '#FFFFFF' : (card.color_letter_series || '#000000');
+    const colorLetter = isDarkOrangeFrame ? '#FFFFFF' : (card.color_letter || '#000000');
+
+    // Definir textXPosition como la posición horizontal central del card
+    const textXPosition = cardWidth / 2;
+
+    // Si el frame no es Dark Orange, dibujar el __v, nombre y serie
+    if (!isDarkOrangeFrame) {
+        context.fillStyle = colorLetter;
+        context.font = 'bold 22px "Bebas Neue"';
+        context.textAlign = 'center';
+        context.fillText(`#${card.__v}`, cardWidth / 2, cardHeight - 84);
+        
+        let seriesText = card.series.length > 16 ? card.series.slice(0, 15) + '-' : card.series;
+        wrapText(context, seriesText, textXPosition, cardHeight - 20, cardWidth - 40, 24);
+        
+        context.fillStyle = colorLetterName;
+        let characterName = card.name.length > 15 ? card.name.slice(0, 14) + '-' : card.name;
+        context.fillText(characterName, textXPosition, cardHeight - 50);
+    }
+
+    // Ajustar posición de texto si el frame es Dark Orange y se omite el __v
+    if (isDarkOrangeFrame) {
+        // Solo dibujar el nombre y la serie una vez, si el frame es Dark Orange
+        context.font = 'bold 30px "Bebas Neue"';
+        context.fillStyle = colorLetterName; // Usar color_letter_name para el nombre
+        context.textAlign = 'center';
+
+        let characterName = card.name.length > 15 ? card.name.slice(0, 14) + '-' : card.name;
+        const nameY = cardHeight - 50; // Posición ajustada para el nombre
+        context.fillText(characterName, textXPosition, nameY);
+
+        // Dibujar el nombre de la serie con el color correspondiente
+        context.font = '24px "Bebas Neue"';
+        context.fillStyle = colorLetterSeries; // Usar color_letter_series para la serie
+        let seriesText = card.series.length > 16 ? card.series.slice(0, 15) + '-' : card.series;
+
+        const seriesY = nameY + 30; // Asegurarse de que no se superponga con el nombre
+        wrapText(context, seriesText, textXPosition, seriesY, cardWidth - 40, 24);
+    }
 
     return canvas;
 }
 
+// Función auxiliar para envolver texto
+function wrapText(context, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let lineY = y;
+    for (const word of words) {
+        const testLine = line + word + ' ';
+        const testWidth = context.measureText(testLine).width;
+        if (testWidth > maxWidth && line !== '') {
+            context.fillText(line, x, lineY);
+            line = word + ' ';
+            lineY += lineHeight;
+        } else {
+            line = testLine;
+        }
+    }
+    context.fillText(line, x, lineY);
+    return lineY + lineHeight;
+}
+
+// Función para manejar el comando "scratch"
 module.exports = {
     name: 'scratch',
     description: 'Scratches a card to reveal it and displays its __v.',
@@ -69,12 +140,7 @@ module.exports = {
                 return await message.channel.send(`This card does not belong to you.`);
             }
 
-            // Verificar si la carta se puede raspar
-            if (!cardToScratch.scratch) {
-                return await message.channel.send(`This card has already been scratched.`);
-            }
-
-            // Cambiar el campo scratch a false
+            // Cambiar el campo scratch a false (eliminamos la propiedad)
             cardToScratch.scratch = false;
 
             // Crear el lienzo de la carta

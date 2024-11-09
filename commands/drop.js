@@ -347,10 +347,10 @@ preloadFrameImage();
 
 
 async function createCardCanvas(characters, userId) { 
-    const cardWidth = 350;
-    const cardHeight = 550;
-    const padding = 30;
-    const offsetX = 40;
+    const cardWidth = 250;
+    const cardHeight = 450;
+    const padding = 35;
+    const offsetX = 30;
     const maxRetries = 3;
 
     let inventory;
@@ -374,7 +374,7 @@ async function createCardCanvas(characters, userId) {
     const displayCharacters = characters.slice(0, numOfCharacters);
 
     const canvasWidth = displayCharacters.length * (cardWidth + padding) + offsetX - padding + 10;
-    const canvas = Canvas.createCanvas(canvasWidth, 600);
+    const canvas = Canvas.createCanvas(canvasWidth, 460);
     const context = canvas.getContext('2d');
     context.fillStyle = '#36393F';
     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -387,10 +387,10 @@ async function createCardCanvas(characters, userId) {
         let frameImage;
         try {
             if (character._id >= 200000) { // Comprobar si la ID está en el rango de Halloween
-                console.log(`Using Halloween frame for character: ${character.name}`);
+             
                 frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png', maxRetries);
             } else {
-                console.log(`Using default frame for character: ${character.name}`);
+              
                 frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png', maxRetries);
             }
         } catch (error) {
@@ -406,7 +406,7 @@ async function createCardCanvas(characters, userId) {
                 console.error(`Error loading image for character ${character._id}:`, error);
                 // Mostrar un mensaje de error en lugar de la imagen
                 context.fillStyle = '#FFFFFF';
-                context.font = 'bold 20px Arial';
+                context.font = 'bold 16px Arial';
                 context.textAlign = 'center';
                 context.fillText("Image doesn't load", cardX + cardWidth / 2, cardHeight / 2);
             }
@@ -420,21 +420,21 @@ async function createCardCanvas(characters, userId) {
         // Solo dibujar el número de versión si NO es una carta de Halloween
         if (character._id < 200000) { // Comprobar si la ID no está en el rango de Halloween
             // Draw character version number
-            context.font = 'bold 22px Bebas Neue';
+            context.font = 'bold 20px Bebas Neue';
             context.fillStyle = textColor;
             context.textAlign = 'center';
-            context.fillText(`#${character.__v}`, cardX + cardWidth / 2, 464);
+            context.fillText(`#${character.__v}`, cardX + cardWidth / 2, 444);
         }
 
         // Character name
-        context.font = 'bold 30px Bebas Neue';
+        context.font = 'bold 23px Bebas Neue';
         context.fillStyle = textColor;
         context.textAlign = 'center';
         let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
         context.fillText(characterName, cardX + cardWidth / 2, cardHeight - 60);
 
         // Series name
-        context.font = '24px Bebas Neue';
+        context.font = '20px Bebas Neue';
         context.fillStyle = textColor;
         context.textAlign = 'center';
         let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
@@ -552,7 +552,7 @@ module.exports = {
     
 
         const canvas = await createCardCanvas(updatedCharacters, userId);
-        const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'cards.png' });
+        const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'cards.webp' });
 
         const userBuffs = await fetchInventory(userId);
         const emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'];

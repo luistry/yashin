@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { fetchInventory, applyFrameToCard } = require('./database/database');
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const fetch = require('node-fetch');
 
 async function fetchImage(url) {
@@ -8,39 +8,54 @@ async function fetchImage(url) {
         throw new Error('Invalid URL');
     }
 
-    const response = await fetch(url);
+    // Detecta si la URL pertenece a DigitalOcean y sigue redirecciones
+    const isDigitalOcean = url.includes('digitaloceanspaces.com');
+    const response = await fetch(url, { redirect: 'follow' });
+
     if (!response.ok) {
         throw new Error('Failed to fetch image');
     }
 
+    // Valida el tipo de contenido si es una URL de DigitalOcean
+    const contentType = response.headers.get('content-type');
+    if (isDigitalOcean && !['image/png', 'image/jpeg', 'image/webp'].includes(contentType)) {
+        throw new Error(`Unsupported content type: ${contentType}`);
+    }
+
     return response.buffer();
 }
-
 async function createCardCanvas(character, frameImageUrl, frameName) {
     const cardWidth = 350;
     const cardHeight = 550;
 
-    // Load the frame image if provided
+    // Carga la imagen del marco si se proporciona
     const frameImage = frameImageUrl ? await fetchImage(frameImageUrl) : null;
 
-    // Create the main canvas for the card
+    // Determina los colores de los textos según el marco
+    const isDarkOrangeFrame = frameName.toLowerCase() === 'dark orange frame'; // Ejemplo de detección de un marco específico
+    const colorLetterName = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_name || '#000000');
+    const colorLetterSeries = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_series || '#000000');
+    const colorLetter = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter || '#000000');
+
+    // Crear el canvas principal para la carta
     const canvas = createCanvas(cardWidth, cardHeight);
     const context = canvas.getContext('2d');
     context.fillStyle = '#36393F';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw the character image if available
+    // Dibujar la imagen del personaje si está disponible
     if (character.img_url) {
         try {
-            const characterImage = await loadImage(character.img_url);
-            context.globalAlpha = 1.0; // Ensure full opacity
+            const characterImageBuffer = await fetchImage(character.img_url);
+            const characterImage = await loadImage(characterImageBuffer);
+            context.globalAlpha = 1.0;
             context.drawImage(characterImage, 10, 10, cardWidth - 20, cardHeight - 20);
         } catch (error) {
             console.error(`Error loading image for character ${character._id}:`, error);
         }
     }
 
-    // Draw the frame with transparency over the card if provided
+    // Dibujar el marco con transparencia sobre la carta si se proporciona
     if (frameImage) {
         const frameCanvas = createCanvas(cardWidth, cardHeight);
         const frameContext = frameCanvas.getContext('2d');
@@ -49,46 +64,29 @@ async function createCardCanvas(character, frameImageUrl, frameName) {
         context.drawImage(frameCanvas, 0, 0, cardWidth, cardHeight);
     }
 
-    // Determine text color and series name visibility based on frame name
-    let textColor = '#FFFFFF'; // Default white text
-    let showSeriesName = true; // Default to showing series name
-
-    if (frameName.toLowerCase() === 'dragon shadow of the rock frame' || frameName.toLowerCase() === 'starry night') {
-        textColor = '#FFFFFF'; // White text for these frames
-    } else if (frameName.toLowerCase() === 'retro arcade frame') {
-        textColor = '#E0FFFF'; // Blue text for retro arcade frame
-        showSeriesName = false; // Hide series name for retro arcade frame
-    }
-
-    // Draw the version number
+    // Dibujar el número de versión (`__v`)
+    context.fillStyle = colorLetter;
     context.font = 'bold 22px "Bebas Neue"';
-    context.fillStyle = textColor;
     context.textAlign = 'center';
     context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
 
-    // Draw the character name
+    // Dibujar el nombre del personaje
+    context.fillStyle = colorLetterName;
     context.font = 'bold 30px "Bebas Neue"';
-    context.fillStyle = textColor;
-    context.textAlign = 'center';
+    const characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
+    context.fillText(characterName, cardWidth / 2, cardHeight - 50);
 
-    let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
-    const nameY = cardHeight - 50; // Adjusted Y position for the name
-    context.fillText(characterName, cardWidth / 2, nameY);
+    // Dibujar el nombre de la serie
+    context.fillStyle = colorLetterSeries;
+    context.font = '24px "Bebas Neue"';
+    const seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
+    wrapText(context, seriesText, cardWidth / 2, cardHeight - 20, cardWidth - 40, 24);
 
-    // Draw the series name if applicable
-    if (showSeriesName) {
-        context.font = '24px "Bebas Neue"';
-        context.fillStyle = textColor;
-        let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
-
-        const seriesY = nameY + 30; // Ensure it doesn't overlap with the name
-        wrapText(context, seriesText, cardWidth / 2, seriesY, cardWidth - 40, 24);
-    }
-
-    return canvas;
+    // Devuelve el buffer de la imagen en formato webp
+    return canvas.toBuffer('image/webp');
 }
 
-// Helper function to wrap text
+// Función auxiliar para ajustar el texto
 function wrapText(context, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' ');
     let line = '';
@@ -108,6 +106,7 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
     context.fillText(line, x, lineY);
     return lineY + lineHeight;
 }
+
 
 module.exports = {
     name: 'apply',
@@ -139,15 +138,14 @@ module.exports = {
         }
 
         // Create a canvas with the card and the frame applied
-        const frameCanvas = await createCardCanvas(card, frame.image, frame.name);
-        const finalImageBuffer = frameCanvas.toBuffer();
+        const frameCanvasBuffer = await createCardCanvas(card, frame.image, frame.name);
 
         // Create a single embed with the applied frame preview
         const embed = new EmbedBuilder()
             .setColor(frame.color_letter || '#BEC2CB') // Use color_letter from frame or default gray
             .setTitle(`Preview: Applying Frame to ${card.name}`)
             .setDescription(`Card code: **${cardCode}**\n\n**Preview:**\nFrame **${frame.name}** will be applied to the card.`)
-            .setImage('attachment://card_final.png');
+            .setImage('attachment://card_final.webp');
 
         // Create buttons for user action
         const row = new ActionRowBuilder()
@@ -165,7 +163,7 @@ module.exports = {
         // Send preview with buttons
         const sentMessage = await message.channel.send({
             embeds: [embed],
-            files: [{ attachment: finalImageBuffer, name: 'card_final.png' }],
+            files: [{ attachment: frameCanvasBuffer, name: 'card_final.webp' }],
             components: [row]
         });
 

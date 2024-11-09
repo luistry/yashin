@@ -493,9 +493,9 @@ async function updateGoldAndShine(userId, goldAmount) {
     }
 }
 
-async function updateStellarDust(userId, stellarDustAmount, goldAmount) {
+async function updateStellarDust(userId, stellarDustAmount, goldAmount, witchDustAmount = 0) {
     try {
-        if (typeof stellarDustAmount !== 'number' || typeof goldAmount !== 'number') {
+        if (typeof stellarDustAmount !== 'number' || typeof goldAmount !== 'number' || typeof witchDustAmount !== 'number') {
             throw new Error('Amounts must be numbers');
         }
 
@@ -513,13 +513,18 @@ async function updateStellarDust(userId, stellarDustAmount, goldAmount) {
         const currentGold = user.gold.reduce((total, value) => total + value, 0);
         const newGoldTotal = currentGold + goldAmount;
 
+        // Calculate the new witch dust total using the reducer, similar to stellar and gold
+        const currentWitchDust = user.witch_dust.reduce((total, value) => total + value, 0);
+        const newWitchDustTotal = currentWitchDust + witchDustAmount;
+
         // Update the user with the new values
         const updatedUser = await Inventory.findOneAndUpdate(
             { user_id: userId },
             {
                 $set: { 
                     stellar_dust: [newStellarDustTotal],
-                    gold: [newGoldTotal]
+                    gold: [newGoldTotal],
+                    witch_dust: [newWitchDustTotal] // Directly updating witch_dust
                 }
             },
             { new: true }
@@ -531,6 +536,7 @@ async function updateStellarDust(userId, stellarDustAmount, goldAmount) {
         throw err;
     }
 }
+
 
 // Define el esquema para los personajes de anime
 const animeCharacterSchema = new mongoose.Schema({
@@ -626,6 +632,40 @@ async function fetchAllInventories() {
 }
 // Función para consumir ítems del inventario
 // database/database.js
+async function addFrame(userId, frameName, quantity, frameImage) {
+    try {
+        // Obtener el inventario del usuario
+        let inventory = await fetchInventory(userId);
+        if (!inventory) {
+            throw new Error('El inventario no se encuentra.');
+        }
+
+        // Verificar si el marco ya existe en el inventario
+        let existingFrame = inventory.Frames.find(frame => frame.name === frameName);
+
+        if (!existingFrame) {
+            // Si el marco no existe, crear un nuevo marco y agregarlo
+            inventory.Frames.push({
+                name: frameName,
+                quantity: quantity,
+                image: frameImage,  // Usamos el parámetro image que pasa la URL del marco
+                color_letter: 'color_default'  // Puedes personalizar el color del marco si es necesario
+            });
+        } else {
+            // Si el marco ya existe, solo aumentar su cantidad
+            existingFrame.quantity += quantity;
+        }
+
+        // Actualizar la base de datos con el nuevo inventario
+        await updateInventory(userId, inventory);
+
+        return 'Marco agregado con éxito';
+    } catch (error) {
+        console.error('Error al agregar marco:', error);
+        throw new Error('No se pudo agregar el marco.');
+    }
+}
+
 
 // Función para consumir ítems del inventario
 
@@ -1136,5 +1176,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory,addHalloweenCard,Prefix
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory,addHalloweenCard,Prefix,addFrame
 };

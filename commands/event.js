@@ -75,11 +75,18 @@ module.exports = {
             if (candyCount >= candiesToDeduct) {
                 const updatedCandies = candyCount - candiesToDeduct;
                 
-                // Actualizar inventario y añadir el `int32` en la posición 0
+                // Reducer para actualizar el inventario
+                const inventoryReducer = (inventory, rewardType) => {
+                    const currentArray = inventory[rewardType] || [];
+                    return [currentArray[0] ? currentArray[0] + 1 : 1, ...currentArray.slice(1)];
+                };
+
+                // Actualizar inventario con el reducer
                 const updatedInventory = {
                     candy: updatedCandies,
-                    [rewardType]: [1, ...(inventory[rewardType] || [])] // Añade 1 en la posición inicial del array
+                    [rewardType]: inventoryReducer(inventory, rewardType)
                 };
+                
                 await updateInventory(userId, updatedInventory);
 
                 await interaction.reply(`You have redeemed **${reward}**! 🎉 You now have ${updatedCandies} candies left.`);

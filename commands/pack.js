@@ -159,13 +159,13 @@ module.exports = {
             });
 
             const packCanvasBuffer = await createPackCanvas(randomCards);
-            const attachment = new AttachmentBuilder(packCanvasBuffer, { name: 'pack.png' });
+            const attachment = new AttachmentBuilder(packCanvasBuffer, { name: 'pack.webp' });
 
             const embed = new EmbedBuilder()
                 .setTitle('🎃 Choose Your Halloween Card 🎃')
                 .setDescription('You received 5 random cards! Select one to add to your inventory.')
                 .setColor('#FF4500')
-                .setImage('attachment://pack.png')
+                .setImage('attachment://pack.webp')
                 .setTimestamp();
 
             const actionRow = new ActionRowBuilder();

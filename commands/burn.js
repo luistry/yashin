@@ -57,6 +57,9 @@ module.exports = {
                 card.calculatedStellarDustReward = calculatedStellarDustReward;
             }
 
+            // Determine if the card is part of the Halloween 2024 event
+            const witchDust = card.event === 'Halloween 2024' ? 1 : 0;
+
             // Create embed with card information and reward details
             const embed = new EmbedBuilder()
                 .setTitle('Are you sure you want to burn this card?')
@@ -89,8 +92,8 @@ module.exports = {
                         // Remove the card from the inventory
                         inventory.cards.splice(cardIndex, 1);
 
-                        // Update the user's stellar dust and gold using the pre-calculated values
-                        await updateStellarDust(userId, calculatedStellarDustReward, calculatedGoldReward);
+                        // Update the user's stellar dust and gold using the pre-calculated values, including witchDust
+                        await updateStellarDust(userId, calculatedStellarDustReward, calculatedGoldReward, witchDust);
 
                         // Find the anime character by name and update its burned count
                         const animeCharacter = await AnimeCharacter.findOne({ name: card.name });
