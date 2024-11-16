@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js'); 
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { fetchInventory, updateInventory } = require('./database/database');
 
 module.exports = {
@@ -6,49 +6,55 @@ module.exports = {
     description: 'Displays the current Halloween event details and allows candy redemption.',
     run: async (message) => {
         const userId = message.author.id;
-        const inventory = await fetchInventory(userId);
-        const candyCount = inventory ? inventory.candy || 0 : 0;
+        let inventory = await fetchInventory(userId);
+        let candyCount = inventory ? parseInt(inventory.candy || '0', 10) : 0; // Aseguramos que candyCount sea un número
 
-        const halloweenEmbed = new EmbedBuilder()
-            .setColor('#FF7518')
-            .setTitle('🎃 Halloween Event - Trick or Treat! 🎃')
-            .setDescription(
-                'Welcome to the spookiest event of the year! 🎃\n' +
-                'Collect **candies** by participating in special drops and earn exclusive Halloween-themed rewards.'
-            )
-            .addFields(
-                { name: '🗓 Event Start Date', value: 'October 31, 2024', inline: true },
-                { name: '🗓 Event End Date', value: 'December 1, 2024', inline: true },
-                { name: '🍬 Collect Candies', value: 'Collect candies to unlock special Halloween rewards! Each drop may contain a candy.' },
-                { name: '🍬 Your Current Candies', value: `You have **${candyCount}** candies. Keep collecting!`, inline: true }
-            )
-            .setFooter({ text: 'Don\'t miss out on the Halloween fun! 🎃' });
+        const generateButtons = (candies) => {
+            const buttons = new ActionRowBuilder();
+            if (candies >= 20) {
+                buttons.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('halloween_banner_box')
+                        .setLabel('🎁 Halloween Banner Box')
+                        .setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder()
+                        .setCustomId('halloween_frame_box')
+                        .setLabel('🎁 Halloween Frame Box')
+                        .setStyle(ButtonStyle.Primary)
+                );
+            }
 
-        const buttons = new ActionRowBuilder();
+            if (candies >= 40) {
+                buttons.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('scratch')
+                        .setLabel('🎟️ Halloween Scratch')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+            }
+            return buttons.components.length > 0 ? [buttons] : [];
+        };
 
-        if (candyCount >= 20) {
-            buttons.addComponents(
-                new ButtonBuilder()
-                    .setCustomId('halloween_banner_box')
-                    .setLabel('🎁 Halloween Banner Box')
-                    .setStyle(ButtonStyle.Primary),
-                new ButtonBuilder()
-                    .setCustomId('halloween_frame_box')
-                    .setLabel('🎁 Halloween Frame Box')
-                    .setStyle(ButtonStyle.Primary)
-            );
-        }
-        
-        if (candyCount >= 40) {
-            buttons.addComponents(
-                new ButtonBuilder()
-                    .setCustomId('scratch')
-                    .setLabel('🎟️ Halloween Scratch')
-                    .setStyle(ButtonStyle.Secondary)
-            );
-        }
+        const sendEmbed = async () => {
+            const halloweenEmbed = new EmbedBuilder()
+                .setColor('#FF7518')
+                .setTitle('🎃 Halloween Event - Trick or Treat! 🎃')
+                .setDescription(
+                    'Welcome to the spookiest event of the year! 🎃\n' +
+                    'Collect **candies** by participating in special drops and earn exclusive Halloween-themed rewards.'
+                )
+                .addFields(
+                    { name: '🗓 Event Start Date', value: 'October 31, 2024', inline: true },
+                    { name: '🗓 Event End Date', value: 'December 1, 2024', inline: true },
+                    { name: '🍬 Collect Candies', value: 'Collect candies to unlock special Halloween rewards! Each drop may contain a candy.' },
+                    { name: '🍬 Your Current Candies', value: `You have **${candyCount}** candies. Keep collecting!`, inline: true }
+                )
+                .setFooter({ text: 'Don\'t miss out on the Halloween fun! 🎃' });
 
-        await message.channel.send({ embeds: [halloweenEmbed], components: buttons.components.length > 0 ? [buttons] : [] });
+            await message.channel.send({ embeds: [halloweenEmbed], components: generateButtons(candyCount) });
+        };
+
+        await sendEmbed();
 
         const filter = (interaction) => interaction.user.id === userId;
         const collector = message.channel.createMessageComponentCollector({ filter, time: 60000 });
@@ -73,23 +79,21 @@ module.exports = {
             }
 
             if (candyCount >= candiesToDeduct) {
-                const updatedCandies = candyCount - candiesToDeduct;
-                
-                // Reducer para actualizar el inventario
-                const inventoryReducer = (inventory, rewardType) => {
-                    const currentArray = inventory[rewardType] || [];
-                    return [currentArray[0] ? currentArray[0] + 1 : 1, ...currentArray.slice(1)];
-                };
+                // Reducir candies y actualizar inventario
+                candyCount -= candiesToDeduct;
+                inventory.candy = candyCount;
 
-                // Actualizar inventario con el reducer
-                const updatedInventory = {
-                    candy: updatedCandies,
-                    [rewardType]: inventoryReducer(inventory, rewardType)
-                };
-                
-                await updateInventory(userId, updatedInventory);
+                // Convertir el campo correspondiente a un array y sumar a la posición 0
+                let rewardArray = Array.isArray(inventory[rewardType]) ? inventory[rewardType] : [0];
+                rewardArray[0] = parseInt(rewardArray[0] || '0', 10) + 1; // Asegurar suma como número
+                inventory[rewardType] = rewardArray;
 
-                await interaction.reply(`You have redeemed **${reward}**! 🎉 You now have ${updatedCandies} candies left.`);
+                await updateInventory(userId, inventory);
+
+                await interaction.reply(`You have redeemed **${reward}**! 🎉 You now have ${candyCount} candies left.`);
+
+                // Reenviar el embed actualizado con los botones correspondientes
+                await sendEmbed();
             } else {
                 await interaction.reply('You do not have enough candies to redeem this reward.', { ephemeral: true });
             }

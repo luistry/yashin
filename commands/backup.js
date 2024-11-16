@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { fetchAllInventories } = require('./database/database'); // Update with the correct path to your fetchAllInventories function
+const zlib = require('zlib'); // Para compresión
+const { fetchAllInventories } = require('./database/database');
 
-// Only these users are authorized
+// Usuarios autorizados
 const authorizedUserIds = ['346799501878755342', '123864968461287428', '339869018439548938', '300619060729610258', '270681503665618954'];
 
 module.exports = {
@@ -10,34 +11,91 @@ module.exports = {
     description: 'Creates a backup of the inventory database',
     run: async (message) => {
         try {
-            // Check if the user is authorized
+            // Verificar autorización
             if (!authorizedUserIds.includes(message.author.id)) {
                 return await message.channel.send('You are not authorized to use this command.');
             }
 
-            // Retrieve all inventories
-            const inventories = await fetchAllInventories(); // Fetch all inventories using your function
+            // Obtener todos los inventarios
+            const inventories = await fetchAllInventories();
 
             if (!inventories || inventories.length === 0) {
                 return await message.channel.send('No inventory data found in the database.');
             }
 
-            // Create the backup file
-            const backupDir = path.join(__dirname, 'backups'); // Directory for backups
+            // Crear directorio de backups
+            const backupDir = path.join(__dirname, 'backups');
             if (!fs.existsSync(backupDir)) {
-                fs.mkdirSync(backupDir); // Create the directory if it doesn't exist
+                fs.mkdirSync(backupDir);
             }
+
+            // Crear el archivo de respaldo
             const filePath = path.join(backupDir, `inventory_backup_${Date.now()}.json`);
-            const fileContent = JSON.stringify(inventories, null, 2); // Format data for better readability
+            const fileContent = JSON.stringify(inventories, null, 2);
             fs.writeFileSync(filePath, fileContent);
 
-            // Send the file to the channel
-            await message.channel.send({
-                content: 'Here is the backup of the inventory database:',
-                files: [filePath]
-            });
+            // Verificar tamaño del archivo
+            const stats = fs.statSync(filePath);
+            const maxSize = 8 * 1024 * 1024; // 8 MB
 
-            // Delete the file after sending it
+            if (stats.size > maxSize) {
+                // Comprimir el archivo
+                const compressedPath = `${filePath}.gz`;
+                const compressedStream = fs.createWriteStream(compressedPath);
+                const gzip = zlib.createGzip();
+                const input = fs.createReadStream(filePath);
+
+                input.pipe(gzip).pipe(compressedStream);
+
+                await new Promise(resolve => compressedStream.on('finish', resolve));
+
+                // Verificar el tamaño comprimido
+                const compressedStats = fs.statSync(compressedPath);
+
+                if (compressedStats.size > maxSize) {
+                    // Dividir en partes si aún es demasiado grande
+                    const splitDir = path.join(backupDir, `split_${Date.now()}`);
+                    fs.mkdirSync(splitDir);
+
+                    const chunkSize = maxSize; // Dividir en partes de máximo 8 MB
+                    let chunkIndex = 0;
+
+                    for (let i = 0; i < fileContent.length; i += chunkSize) {
+                        const chunkPath = path.join(splitDir, `inventory_part_${chunkIndex + 1}.json`);
+                        fs.writeFileSync(chunkPath, fileContent.slice(i, i + chunkSize));
+                        chunkIndex++;
+                    }
+
+                    // Enviar las partes
+                    const splitFiles = fs.readdirSync(splitDir).map(file => path.join(splitDir, file));
+
+                    await message.channel.send({
+                        content: 'The backup was too large. Here are the split parts:',
+                        files: splitFiles
+                    });
+
+                    // Limpiar archivos temporales
+                    splitFiles.forEach(file => fs.unlinkSync(file));
+                    fs.rmdirSync(splitDir);
+                } else {
+                    // Enviar archivo comprimido
+                    await message.channel.send({
+                        content: 'The backup file was compressed due to size limitations:',
+                        files: [compressedPath]
+                    });
+
+                    // Eliminar archivo comprimido
+                    fs.unlinkSync(compressedPath);
+                }
+            } else {
+                // Enviar archivo original si está dentro del límite
+                await message.channel.send({
+                    content: 'Here is the backup of the inventory database:',
+                    files: [filePath]
+                });
+            }
+
+            // Eliminar archivo original
             fs.unlinkSync(filePath);
 
         } catch (err) {
