@@ -126,32 +126,50 @@ module.exports = {
             const userId = message.author.id; // ID del usuario que está usando el comando
             const inventory = await fetchInventory(userId); // Obtener el inventario
 
-            // Verificar que hay cartas en el inventario
-            if (!inventory || !Array.isArray(inventory.cards) || inventory.cards.length === 0) {
-                return await message.channel.send(`No scratch card available for you.`);
+            // Verificar que hay cartas y scratch cards disponibles
+            if (!inventory || inventory.scratch === undefined || inventory.scratch <= 0) {
+                return await message.channel.send(`You have no scratch cards left to use.`);
+            }
+
+            if (!Array.isArray(inventory.cards) || inventory.cards.length === 0) {
+                return await message.channel.send(`No scratchable cards available in your inventory.`);
             }
 
             // Obtener el código de la carta a raspar desde los argumentos
-            const codeToScratch = args[0]; // El primer argumento es el código
+            const codeToScratch = args[0];
             const cardToScratch = inventory.cards.find(card => card.code === codeToScratch);
 
-            // Verificar si la carta se encuentra en el inventario del usuario
+            // Verificar si la carta pertenece al usuario
             if (!cardToScratch) {
-                return await message.channel.send(`This card does not belong to you.`);
+                return await message.channel.send(`The card with code "${codeToScratch}" does not belong to you.`);
             }
 
-            // Cambiar el campo scratch a false (eliminamos la propiedad)
+            if (cardToScratch.scratch === false) {
+                return await message.channel.send(`This card has already been scratched.`);
+            }
+
+            // Actualizar el estado de la carta
             cardToScratch.scratch = false;
 
             // Crear el lienzo de la carta
             const canvas = await createCardCanvas(cardToScratch);
-            const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'card.png' }); // Usar AttachmentBuilder correctamente
+            const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'card.png' });
 
-            // Actualizar inventario
-            await updateInventory(userId, { cards: inventory.cards }); // Actualiza solo las cartas
+            // Restar 1 al contador de scratch y actualizar inventario
+            inventory.scratch -= 1;
+
+            await updateInventory(userId, {
+                scratch: inventory.scratch,
+                cards: inventory.cards.map(card =>
+                    card.code === codeToScratch ? cardToScratch : card // Actualizar solo la carta modificada
+                )
+            });
 
             // Enviar la carta como imagen
-            await message.channel.send({ content: `You scratched a card! Here is your card with __v: **#${cardToScratch.__v}**`, files: [attachment] });
+            await message.channel.send({
+                content: `You scratched a card! Here is your card with #: **#${cardToScratch.__v}**\nYou now have **${inventory.scratch}** scratch cards left.`,
+                files: [attachment]
+            });
         } catch (error) {
             console.error('Error while scratching the card:', error);
             await message.channel.send('There was an error trying to scratch the card. Please try again later.');
