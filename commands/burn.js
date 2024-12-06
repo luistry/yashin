@@ -108,6 +108,30 @@ module.exports = {
                         // Update the embed to green to indicate success
                         embed.setColor(0x00ff00); // Set color to green
                         await i.update({ embeds: [embed], content: `You burned the card **${card.name}**. You received **${calculatedGoldReward}** Gold and **${calculatedStellarDustReward}** Stellar Dust.`, components: [], ephemeral: true });
+                        const increased = await fetchInventory(userId);
+
+                        if (!increased) {
+                            console.error('No se encontró el inventario del usuario.');
+                            return;
+                        }
+                        
+                        // Verificar si el campo `daily_stats` existe y es un array válido
+                        if (!Array.isArray(increased.daily_stats) || increased.daily_stats.length === 0) {
+                            // Inicializar con un objeto que contiene `daily_burn`
+                            increased.daily_stats = [{ daily_burn: 1 }];
+                        } else {
+                            // Trabajar con el primer objeto del array `daily_stats`
+                            const stats = increased.daily_stats[0];
+                        
+                            // Incrementar el contador `daily_burn` del primer objeto
+                            stats.daily_burn = (stats.daily_burn || 0) + 1;
+                        }
+                        
+                        // Guardar los cambios en la base de datos
+                        await increased.save();
+                        console.log('Daily stats actualizado:', increased.daily_stats);
+                        
+                        
                     } catch (error) {
                         console.error('Error during burn operation:', error.message);
                         await i.update({ content: 'There was an error burning the card. Please try again later.', components: [], ephemeral: true });
@@ -126,6 +150,7 @@ module.exports = {
         } catch (error) {
             console.error('Error in burn command:', error.message);
             message.reply({ content: 'There was an error processing your request. Please try again later.', ephemeral: true });
-        }
-    },
-};
+        
+    }
+},
+}

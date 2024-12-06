@@ -47,7 +47,7 @@ const boxBannersHalloween = [
     { name: 'spooky bride', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/Spooky%20Brides.webp', type: 'banner' }
 ];
 const boxframeHalloween = [
-    { name: 'Bat Frame ', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/halloween-banner/frame/Bat_Frame.webp', type: 'Frame' },
+    { name: 'Bat Frame ', image: 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Bat_Frame_waifu2x_art_noise2_scale.png', type: 'Frame' },
 ];
 
 module.exports = {

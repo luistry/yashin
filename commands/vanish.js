@@ -37,13 +37,6 @@ async function fetchImage(url) {
     }
 }
 
-// Constants
-
-const COOLDOWN_DURATION_GRAB = 10 * 60 * 1000;  // 10 minutes
-// Generates an array of 3 unique random numbers within the specified range
-// Generates a random character ID
-
-
 // Generates a random character ID
 // Generates an array of 3 unique random character IDs between 1 and 13500
 function getRandomCharacterIds() {
@@ -63,6 +56,34 @@ function getRandomCharacterIds() {
 
     return Array.from(ids);
 }
+
+// Fetches a valid character from the database or generates a new one if needed
+const getValidCharacter = async () => {
+    let character = null;
+
+    while (!character) {
+        // Get 3 random character IDs
+        const randomCharacterIds = getRandomCharacterIds();
+        console.log(`Fetching characters with IDs: ${randomCharacterIds.join(', ')}`);
+
+        // Try to find a character from one of the random IDs
+        for (const id of randomCharacterIds) {
+            character = await AnimeCharacter.findById(id).exec();
+
+            if (character) {
+                break; // Stop searching if a valid character is found
+            }
+        }
+
+        if (!character) {
+            console.log('No character found, generating a new one.');
+            // Optionally generate and save a new character
+            // character = await generateAndSaveNewCharacter();
+        }
+    }
+
+    return character;
+};
 // Fetches valid characters from the database or generates new ones if needed
 const getValidCharacters = async () => {
     const validCharacters = [];
@@ -171,26 +192,42 @@ function getRandomRarity() {
     return rarities[Math.floor(Math.random() * rarities.length)];
 }
 
+// Variable global para almacenar la versión actual seleccionada
+let version = null;
+
 // Update character stats
 async function updateCharacterStats(id, rarity) {
     try {
         const character = await AnimeCharacter.findOne({ _id: id }).exec();
         if (character) {
-            character.generate = (character.generate || 0) + 1;
-            character.__v = (character.__v || 0) + 1;
+            character.generate = character.generate || 0;
+
+            // Validar si misingversion tiene elementos y usar la posición 0
+            if (character.misingversion && character.misingversion.length > 0) {
+                version = character.misingversion[0]; // Asignar la posición 0 de misingversion a la variable global
+            } else {
+                console.error(`No valid misingversion found for character ID: ${id}`);
+                return null; // Salir si no hay versiones faltantes
+            }
+
             character.code = generateRandomCode(Math.floor(Math.random() * 4) + 3);
             character.rarity = rarity;
 
             await character.save();
-            return { code: character.code, rarity };
+            return {
+                code: character.code,
+                rarity,
+                version // Retorna la variable global version
+            };
         }
+        console.error(`Character with ID: ${id} not found.`);
         return null;
     } catch (error) {
         console.error('Error updating character stats:', error);
         return null;
     }
 }
-const HALF_COOLDOWN_DURATION_GRAB = 5 * 60 * 1000; // 5 minutes if buff active
+
 
 function formatCooldown(type, lastCooldown, duration) {
     const currentTime = Date.now();
@@ -208,49 +245,6 @@ function formatCooldown(type, lastCooldown, duration) {
         }
     }
     return null; // No cooldown left
-}
-
-async function handleDropCooldown(userId, message) {
-    const lastDrop = await fetchLastDrop(userId);
-    const currentTime = Date.now();
-    const COOLDOWN_DURATION_DROP = 20 * 60 * 1000; // 20 minutos
-    const HALF_COOLDOWN_DURATION_DROP = 10 * 60 * 1000; // 10 minutos
-
-    if (lastDrop) {
-        const timePassed = currentTime - lastDrop;
-        let duration = COOLDOWN_DURATION_DROP;
-
-        // Fetch inventory y verificar buffs activos
-        const inventory = await fetchInventory(userId);
-        const buffs = inventory.Buffs || [];
-
-        // Verificar si el buff 'Speed of Reaction' está activo
-        const SpeedofReactionBuff = buffs.find(buff => buff.name === 'Speed of Reaction' && buff.active);
-        if (SpeedofReactionBuff) {
-            duration = HALF_COOLDOWN_DURATION_DROP; // Aplicar el efecto del buff
-        }
-
-        const timeLeft = duration - timePassed;
-
-        if (timeLeft > 0) {
-            // Verificar si el usuario tiene "extra drops"
-            if (inventory.extra_drop > 0) {
-                // Usar un "extra drop"
-                await consumeItems(userId, ['extra_drop']);
-                await message.channel.send(`${message.author}, you used an extra drop! Remaining extra drops: ${inventory.extra_drop - 1}`);
-                return false; // No hay cooldown activo
-            } else {
-                // Si no hay "extra drops", mostrar el cooldown restante
-                const cooldownMessage = formatCooldown('drop', lastDrop, duration);
-                await message.channel.send(`You are on cooldown. Please wait ${cooldownMessage}.`);
-                return true; // Cooldown activo
-            }
-        }
-    }
-
-    // Actualizar el último drop si no hay cooldown activo
-    await updateLastDrop(userId);
-    return false; // No hay cooldown activo
 }
 
 async function handleGrabCooldown(userId) {
@@ -315,7 +309,7 @@ async function preloadFrameImage() {
 preloadFrameImage();
 
 
-async function createCardCanvas(characters, userId) { 
+async function createCardCanvas(characters, userId) {
     const cardWidth = 250;
     const cardHeight = 450;
     const padding = 35;
@@ -348,6 +342,7 @@ async function createCardCanvas(characters, userId) {
     context.fillStyle = '#36393F';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Iterar sobre los personajes y usar la variable global version en lugar de __v
     for (let i = 0; i < displayCharacters.length; i++) {
         const character = displayCharacters[i];
         const cardX = i * (cardWidth + padding) + offsetX;
@@ -356,10 +351,8 @@ async function createCardCanvas(characters, userId) {
         let frameImage;
         try {
             if (character._id >= 200000) { // Comprobar si la ID está en el rango de Halloween
-             
                 frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png', maxRetries);
             } else {
-              
                 frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png', maxRetries);
             }
         } catch (error) {
@@ -386,23 +379,32 @@ async function createCardCanvas(characters, userId) {
         // Definir el color del texto en función de la ID del personaje
         const textColor = character._id >= 200000 ? '#FFFFFF' : '#000000'; // Blanco para Halloween, negro para otros
 
-        // Solo dibujar el número de versión si NO es una carta de Halloween
-        if (character._id < 200000) { // Comprobar si la ID no está en el rango de Halloween
-            // Draw character version number
-            context.font = 'bold 20px Bebas Neue';
-            context.fillStyle = textColor;
-            context.textAlign = 'center';
-            context.fillText(`#${character.__v}`, cardX + cardWidth / 2, 444);
+        // Verificar si misingversion existe y tiene elementos
+        if (character.misingversion && character.misingversion.length > 0) {
+            // Usar la variable global version asignada previamente
+            const firstVersion = version || character.misingversion[0]; // Fallback por seguridad
+
+            console.log(`Character Name: ${character.name}`);
+            console.log(`misingversion Array:`, character.misingversion);
+            console.log(`Selected version from global variable 'version': ${firstVersion}`);
+
+            // Solo dibujar el número de versión si NO es una carta de Halloween
+            if (character._id < 200000) { // Comprobar si la ID no está en el rango de Halloween
+                context.font = 'bold 20px Bebas Neue';
+                context.fillStyle = textColor;
+                context.textAlign = 'center';
+                context.fillText(`#${firstVersion}`, cardX + cardWidth / 2, 444); // Usamos la primera versión directamente
+            }
         }
 
-        // Character name
+        // Nombre del personaje
         context.font = 'bold 23px Bebas Neue';
         context.fillStyle = textColor;
         context.textAlign = 'center';
         let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
         context.fillText(characterName, cardX + cardWidth / 2, cardHeight - 60);
 
-        // Series name
+        // Nombre de la serie
         context.font = '20px Bebas Neue';
         context.fillStyle = textColor;
         context.textAlign = 'center';
@@ -412,6 +414,7 @@ async function createCardCanvas(characters, userId) {
 
     return canvas;
 }
+
 
 
 // Load frame image with retries
@@ -427,11 +430,6 @@ const loadFrameImage = async (url, retries) => {
         }
     }
 };
-
-
-
-
-
 // Helper function to wrap text
 function wrapText(context, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' ');
@@ -453,10 +451,9 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
     context.fillText(line, x, y);
     return y;
 }
-let inventory;  // Declare inventory in a higher scope
 module.exports = { 
-    name: 'drop',
-    description: 'Drop a card every 20 minutes.',
+    name: 'vanish',
+    description: 'vanish drop for cards despawned/burned',
     run: async (message) => {
         const user = message.author;
         const channel = message.channel;
@@ -473,10 +470,24 @@ module.exports = {
         }
 
         const userId = userInventory._id;
+
+        // Update daily buffs (optional, depending on your logic)
         await updateDailyBuffs(userId);
 
-        const cooldownActive = await handleDropCooldown(userId, message);
-        if (cooldownActive) return;
+        // Check vanish drops
+        const vanish = userInventory.vanish || 0; // Ensure vanish is not undefined
+
+        if (vanish <= 0) {
+            // If the user has no vanish drops
+            return message.channel.send("You don't have any vanish drops available.");
+        }
+
+        // Proceed if the user has vanish drops
+        message.channel.send(`Vanish drop used. Remaining vanish drops: ${vanish - 1}`);
+
+        // Logic to consume a vanish drop (e.g., decrement vanish by 1)
+        userInventory.vanish -= 1;
+        await userInventory.save(); // Save changes to the inventory
 
         const getValidCharacter = async () => {
             let character = null;
@@ -491,25 +502,26 @@ module.exports = {
         };
 
         const updatedCharacters = [];
-        for (let i = 0; i < 5; i++) {
-            const character = await getValidCharacter();
-            const rarity = getRandomRarity();
-            const updatedStats = await updateCharacterStats(character._id, rarity);
+for (let i = 0; i < 5; i++) {
+    const character = await getValidCharacter();
+    const rarity = getRandomRarity();
+    const updatedStats = await updateCharacterStats(character._id, rarity);
 
-            if (updatedStats) {
-                updatedCharacters.push({
-                    _id: character._id,
-                    name: character.name,
-                    series: character.series,
-                    img_url: character.img_url,
-                    rarity: updatedStats.rarity,
-                    code: updatedStats.code,
-                    __v: character.__v,
-                    generate: character.generate || 0,
-                    wishlist: character.wishlist || null
-                });
-            }
-        }
+    if (updatedStats) {
+        updatedCharacters.push({
+            _id: character._id,
+            name: character.name,
+            series: character.series,
+            img_url: character.img_url,
+            rarity: updatedStats.rarity,
+            code: updatedStats.code,
+            version: updatedStats.version, // Usamos la versión actualizada desde updatedStats
+            generate: character.generate || 0,
+            wishlist: character.wishlist || null
+        });
+    }
+}
+
          // Array para almacenar las IDs a las que se hará ping
 //await wishlistMention(updatedCharacters, message.channel.id);
 
@@ -529,16 +541,17 @@ module.exports = {
             // Verificar si la ID del personaje es de Halloween
             const isHalloween = char._id >= 200000; // Ajusta el número según tus requisitos
             const pumpkinEmoji = isHalloween ? '🎃' : ''; // Emoji de calabaza solo si es Halloween
-    
+        
             // Formatear la salida dependiendo de si es de Halloween o no
-            const versionText = isHalloween ? '' : ` • #${char.__v}`; // Mostrar __v solo si NO es de Halloween
-    
+            const versionText = isHalloween ? '' : ` • #${char.version}`; // Mostrar "version" solo si NO es de Halloween
+        
             return `${emojis[index]} **${char.name}** - ${char.series} - ${char.code} ${pumpkinEmoji}${versionText}`;
         })
         .join('\n');
+        
     
         const msg = await message.channel.send({
-            content: `<@${userId}> Vanish drop\n${dropList}`,
+            content: `<@${userId}>Vanish Drop\n${dropList}`,
             files: [attachment]
         });
 
@@ -635,7 +648,30 @@ collector.on('collect', async (reaction, reactingUser) => {
                 : 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
             
             const scratch = isHalloweencard; // Se asigna directamente el valor boolean
-
+            async function removeFirstMisingVersionBySelectedCharacter(selectedCharacter) {
+                try {
+                    // Buscar el personaje en la base de datos por su _id
+                    const character = await AnimeCharacter.findOne({ _id: selectedCharacter._id }).exec();
+            
+                    if (character && character.misingversion && character.misingversion.length > 0) {
+                        // Eliminar la posición 0 del array misingversion
+                        character.misingversion.shift();
+            
+                        // Guardar los cambios en la base de datos
+                        await character.save();
+            
+                        console.log(`misingversion actualizado para el personaje ${character.name}:`, character.misingversion);
+                        return true; // Retornar éxito
+                    } else {
+                        console.log(`El personaje con ID ${selectedCharacter._id} no tiene un array misingversion válido.`);
+                        return false; // No se pudo actualizar
+                    }
+                } catch (error) {
+                    console.error(`Error al actualizar misingversion para el personaje con ID ${selectedCharacter._id}:`, error);
+                    return false; // Error
+                }
+            }
+            
             await addCardToInventory(reactingUser.id, {
                 _id: selectedCharacter._id,
                 name: selectedCharacter.name,
@@ -643,7 +679,7 @@ collector.on('collect', async (reaction, reactingUser) => {
                 img_url: selectedCharacter.img_url,
                 rarity: selectedCharacter.rarity,
                 code: selectedCharacter.code,
-                __v: selectedCharacter.__v,
+                __v: selectedCharacter.version,
                 dropped_on: new Date(),
                 grabbed_by: reactingUser.id,
                 channel_id: message.channel.id,
@@ -659,16 +695,22 @@ collector.on('collect', async (reaction, reactingUser) => {
                 color_letter: "",
                 scratch: scratch
             });
-
+         
           // Determinar si el personaje es de Halloween basado en su ID
 const isHalloweenCharacter = selectedCharacter._id >= 200000;
+const success = await removeFirstMisingVersionBySelectedCharacter(selectedCharacter);
 
+if (success) {
+    console.log("La posición 0 del array misingversion fue eliminada correctamente.");
+} else {
+    console.log("No se pudo actualizar el array misingversion.");
+}
 // Mensaje base
 const baseMessage = `${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`;
 
 // Enviar el mensaje con la versión de __v si no es de Halloween
 if (!isHalloweenCharacter) {
-    await message.channel.send(`${baseMessage} · \`#${selectedCharacter.__v}\``);
+    await message.channel.send(`${baseMessage} · \`#${selectedCharacter.version}\``);
 } else {
     // Mensaje para cartas de Halloween (puedes personalizarlo según necesites)
     await message.channel.send(`${baseMessage} · 🎃 This card is a Halloween special!`);
@@ -710,7 +752,34 @@ if (!isHalloweenCharacter) {
             const default_frame = isHalloweencard1 
                 ? 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png'
                 : 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
-            
+               
+                
+                // Actualizar en la base de datos para reflejar el cambio en misingversion
+                async function removeFirstMisingVersionBySelectedCharacter(selectedCharacter) {
+                    try {
+                        // Buscar el personaje en la base de datos por su _id
+                        const character = await AnimeCharacter.findOne({ _id: selectedCharacter._id }).exec();
+                
+                        if (character && character.misingversion && character.misingversion.length > 0) {
+                            // Eliminar la posición 0 del array misingversion
+                            character.misingversion.shift();
+                
+                            // Guardar los cambios en la base de datos
+                            await character.save();
+                
+                            console.log(`misingversion actualizado para el personaje ${character.name}:`, character.misingversion);
+                            return true; // Retornar éxito
+                        } else {
+                            console.log(`El personaje con ID ${selectedCharacter._id} no tiene un array misingversion válido.`);
+                            return false; // No se pudo actualizar
+                        }
+                    } catch (error) {
+                        console.error(`Error al actualizar misingversion para el personaje con ID ${selectedCharacter._id}:`, error);
+                        return false; // Error
+                    }
+                }
+                
+                
             const scratch = isHalloweencard1; // Se asigna directamente el valor boolean
             await addCardToInventory(reactingUser.id, {
                 _id: selectedCharacter._id,
@@ -719,7 +788,7 @@ if (!isHalloweenCharacter) {
                 img_url: selectedCharacter.img_url,
                 rarity: selectedCharacter.rarity,
                 code: selectedCharacter.code,
-                __v: selectedCharacter.__v,
+                __v: selectedCharacter.version,
                 dropped_on: new Date(),
                 grabbed_by: reactingUser.id,
                 channel_id: message.channel.id,
@@ -738,13 +807,19 @@ if (!isHalloweenCharacter) {
             });
 // Determinar si el personaje es de Halloween basado en su ID
 const isHalloweenCharacter = selectedCharacter._id >= 200000;
+const success = await removeFirstMisingVersionBySelectedCharacter(selectedCharacter);
 
+if (success) {
+    console.log("La posición 0 del array misingversion fue eliminada correctamente.");
+} else {
+    console.log("No se pudo actualizar el array misingversion.");
+}
 // Mensaje base
 const baseMessage = `${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`;
 
 // Enviar el mensaje con la versión de __v si no es de Halloween
 if (!isHalloweenCharacter) {
-    await message.channel.send(`${baseMessage} · \`#${selectedCharacter.__v}\``);
+    await message.channel.send(`${baseMessage} · \`#${selectedCharacter.version}\``);
 } else {
     // Mensaje para cartas de Halloween (puedes personalizarlo según necesites)
     await message.channel.send(`${baseMessage} · 🎃 This card is a Halloween special!`);
@@ -769,33 +844,14 @@ if (!isHalloweenCharacter) {
 collector.on('end', async collected => {
     if (collected.size === 0) {
         try {
-            await msg.edit({ content: `${msg.content}\n\n**The Drop has Expired.**` });
+            await msg.edit({ content: `${msg.content}\n\n**The Vanish Drop has Expired.**` });
             await msg.reactions.removeAll();
         } catch (error) {
             console.error('Error handling drop expiration:', error);
         }
     }
 });
-async function addCandyToInventory(userId, candyAmount) {
-    const inventory = await fetchInventory(userId);
-    if (inventory) {
-        // Inicializa el array de caramelos si no existe
-        if (!Array.isArray(inventory.candy)) {
-            inventory.candy = [0]; 
-        }
 
-        // Reducer para sumar la nueva cantidad de caramelos en la posición 0
-        inventory.candy = inventory.candy.reduce((acc, curr, index) => {
-            // Sumar la cantidad de caramelos en la posición 0
-            if (index === 0) {
-                return [curr + candyAmount]; // Solo actualiza la posición 0
-            }
-            return [curr]; // Dejar las demás posiciones como están (si las hay)
-        }, [0]); // Inicializar con 0 en caso de que no haya elementos
-
-        await inventory.save();
-    }
-}
-console.log(`Drop executed by ${user.username} in channel ${channel.id} with ${updatedCharacters.length} characters.`);
+console.log(`Vanish Drop executed by ${user.username} in channel ${channel.id} with ${updatedCharacters.length} characters.`);
     }
 }

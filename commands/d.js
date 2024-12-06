@@ -51,10 +51,12 @@ function getRandomCharacterIds() {
 
     // Generate one ID between 15000 and 15408
     const randomIdInRange = Math.floor(Math.random() * (150669 - 150121 + 1)) + 150121; // ID in range
-    const randomIdInRange1 = Math.floor(Math.random() * (200200 - 200001 + 1)) + 200001;
-  //  ids.add(randomIdInRange);
+    const randomIdInRange1 = Math.floor(Math.random() * (200278 - 200215 + 1)) + 200215;
+
+
     ids.add(randomIdInRange);
     ids.add(randomIdInRange1);
+
     // Continue adding random IDs until we have 3 total
     while (ids.size < 3) {
         const randomId = Math.floor(Math.random() * 15408) + 1; // Random ID between 1 and 15408
@@ -333,20 +335,7 @@ async function preloadFrameImage() {
 // Call this function before using `createCardCanvas`
 preloadFrameImage();
 
-async function preloadFrameImage() {
-    try {
-        frameImage = await fetchImage(frameImageUrl);
-    } catch (error) {
-        console.error('Error preloading frame image:', error);
-        frameImage = null; // Set to null if loading fails
-    }
-}
-
-// Call this function before using `createCardCanvas`
-preloadFrameImage();
-
-
-async function createCardCanvas(characters, userId) { 
+async function createCardCanvas(characters, userId) {
     const cardWidth = 250;
     const cardHeight = 450;
     const padding = 35;
@@ -373,6 +362,14 @@ async function createCardCanvas(characters, userId) {
     const numOfCharacters = isDivinityAbsoluteActive ? 4 : 3;
     const displayCharacters = characters.slice(0, numOfCharacters);
 
+    let frameImage;
+    try {
+        frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png', maxRetries);
+    } catch (error) {
+        console.error('Error loading frame image:', error);
+        return null; // Exit if frame image cannot be loaded
+    }
+
     const canvasWidth = displayCharacters.length * (cardWidth + padding) + offsetX - padding + 10;
     const canvas = Canvas.createCanvas(canvasWidth, 460);
     const context = canvas.getContext('2d');
@@ -383,21 +380,6 @@ async function createCardCanvas(characters, userId) {
         const character = displayCharacters[i];
         const cardX = i * (cardWidth + padding) + offsetX;
 
-        // Seleccionar el marco adecuado según la ID del personaje
-        let frameImage;
-        try {
-            if (character._id >= 200000) { // Comprobar si la ID está en el rango de Halloween
-             
-                frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png', maxRetries);
-            } else {
-              
-                frameImage = await loadFrameImage('https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png', maxRetries);
-            }
-        } catch (error) {
-            console.error('Error loading frame image:', error);
-            return null; // Exit if frame image cannot be loaded
-        }
-
         if (character.img_url) {
             try {
                 const characterImage = await Canvas.loadImage(character.img_url);
@@ -406,36 +388,30 @@ async function createCardCanvas(characters, userId) {
                 console.error(`Error loading image for character ${character._id}:`, error);
                 // Mostrar un mensaje de error en lugar de la imagen
                 context.fillStyle = '#FFFFFF';
-                context.font = 'bold 16px Arial';
+                context.font = 'bold 20px Arial';
                 context.textAlign = 'center';
-                context.fillText("Image doesn't load", cardX + cardWidth / 2, cardHeight / 2);
+                context.fillText("Image don't load", cardX + cardWidth / 2, cardHeight / 2);
             }
         }
 
         context.drawImage(frameImage, cardX, 0, cardWidth, cardHeight);
 
-        // Definir el color del texto en función de la ID del personaje
-        const textColor = character._id >= 200000 ? '#FFFFFF' : '#000000'; // Blanco para Halloween, negro para otros
-
-        // Solo dibujar el número de versión si NO es una carta de Halloween
-        if (character._id < 200000) { // Comprobar si la ID no está en el rango de Halloween
-            // Draw character version number
-            context.font = 'bold 20px Bebas Neue';
-            context.fillStyle = textColor;
-            context.textAlign = 'center';
-            context.fillText(`#${character.__v}`, cardX + cardWidth / 2, 444);
-        }
+        // Draw character version number
+        context.font = 'bold 20px Bebas Neue';
+        context.fillStyle = '#000000';
+        context.textAlign = 'center';
+        context.fillText(`#${character.__v}`, cardX + cardWidth / 2, 444);
 
         // Character name
-        context.font = 'bold 23px Bebas Neue';
-        context.fillStyle = textColor;
+        context.font = 'bold 20px Bebas Neue';
+        context.fillStyle = '#000000';
         context.textAlign = 'center';
         let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
         context.fillText(characterName, cardX + cardWidth / 2, cardHeight - 60);
 
         // Series name
         context.font = '20px Bebas Neue';
-        context.fillStyle = textColor;
+        context.fillStyle = '#000000';
         context.textAlign = 'center';
         let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
         wrapText(context, seriesText, cardX + cardWidth / 2, cardHeight - 30, cardWidth - 40, 24);
@@ -443,7 +419,6 @@ async function createCardCanvas(characters, userId) {
 
     return canvas;
 }
-
 
 // Load frame image with retries
 const loadFrameImage = async (url, retries) => {
@@ -458,9 +433,6 @@ const loadFrameImage = async (url, retries) => {
         }
     }
 };
-
-
-
 
 
 // Helper function to wrap text
@@ -560,19 +532,12 @@ module.exports = {
         const numberOfCharactersToShow = isBuffActive ? 4 : 3;
 
         const dropList = updatedCharacters
-        .slice(0, numberOfCharactersToShow)
-        .map((char, index) => {
-            // Verificar si la ID del personaje es de Halloween
-            const isHalloween = char._id >= 200000; // Ajusta el número según tus requisitos
-            const pumpkinEmoji = isHalloween ? '🎃' : ''; // Emoji de calabaza solo si es Halloween
-    
-            // Formatear la salida dependiendo de si es de Halloween o no
-            const versionText = isHalloween ? '' : ` • #${char.__v}`; // Mostrar __v solo si NO es de Halloween
-    
-            return `${emojis[index]} **${char.name}** - ${char.series} - ${char.code} ${pumpkinEmoji}${versionText}`;
-        })
-        .join('\n');
-    
+            .slice(0, numberOfCharactersToShow)
+            .map((char, index) => 
+                `${emojis[index]} **${char.name}** - ${char.series} - ${char.code} • #${char.__v}`
+            )
+            .join('\n');
+
         const msg = await message.channel.send({
             content: `<@${userId}> drop\n${dropList}`,
             files: [attachment]
@@ -581,15 +546,8 @@ module.exports = {
         for (let i = 0; i < numberOfCharactersToShow; i++) {
             await msg.react(emojis[i]);
         }
-        let candyReactionAdded = false;
-        let candyAmount = 0;
-        if (Math.random() < 0.2) { // 20% de probabilidad de caramelo
-            candyAmount = Math.floor(Math.random() * 3) + 1; // Cantidad de caramelos aleatoria entre 1 y 3
-            await msg.react('🍬');
-            candyReactionAdded = true;
-        }
 //reactions to add the card grabbed
-const filter = (reaction, user) => (emojis.includes(reaction.emoji.name) || reaction.emoji.name === '🍬') && !user.bot;
+const filter = (reaction, user) => emojis.includes(reaction.emoji.name) && !user.bot;
 const cardGrabbed = new Map(); 
 const priorityMap = new Map(); 
 const collector = msg.createReactionCollector({ filter, time: 60000 });
@@ -604,13 +562,6 @@ setTimeout(() => {
 
 collector.on('collect', async (reaction, reactingUser) => {
     const index = emojis.indexOf(reaction.emoji.name);
-    if (reaction.emoji.name === '🍬' && candyReactionAdded) {
-        candyReactionAdded = false; // Solo un jugador puede obtener el caramelo
-
-        await addCandyToInventory(reactingUser.id, candyAmount);
-        await message.channel.send(`${reactingUser} has received **${candyAmount}** 🍬 candy!`);
-        return; 
-    }
     if (index === -1) return;
 
     const selectedCharacter = updatedCharacters[index];
@@ -664,13 +615,6 @@ collector.on('collect', async (reaction, reactingUser) => {
         if (!hasCardBeenGrabbed) {
             cardGrabbed.set(selectedCharacter._id, reactingUser.id);
             cooldownUsers.add(reactingUser.id); // Agregar al usuario a la lista de cooldown
-            const isHalloweencard = selectedCharacter._id >= 200000;
-
-            const default_frame = isHalloweencard 
-                ? 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png'
-                : 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
-            
-            const scratch = isHalloweencard; // Se asigna directamente el valor boolean
 
             await addCardToInventory(reactingUser.id, {
                 _id: selectedCharacter._id,
@@ -684,7 +628,7 @@ collector.on('collect', async (reaction, reactingUser) => {
                 grabbed_by: reactingUser.id,
                 channel_id: message.channel.id,
                 guild_id: message.guild.id,
-                default_frame: default_frame,
+                default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
                 morph_apply: "",
                 last_morph: "",
                 color_letter_name: "",
@@ -692,24 +636,10 @@ collector.on('collect', async (reaction, reactingUser) => {
                 last_color_letter_series: "",
                 color_letter_series: "",
                 last_color_letter: "",
-                color_letter: "",
-                scratch: scratch
+                color_letter: ""
             });
 
-          // Determinar si el personaje es de Halloween basado en su ID
-const isHalloweenCharacter = selectedCharacter._id >= 200000;
-
-// Mensaje base
-const baseMessage = `${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`;
-
-// Enviar el mensaje con la versión de __v si no es de Halloween
-if (!isHalloweenCharacter) {
-    await message.channel.send(`${baseMessage} · \`#${selectedCharacter.__v}\``);
-} else {
-    // Mensaje para cartas de Halloween (puedes personalizarlo según necesites)
-    await message.channel.send(`${baseMessage} · 🎃 This card is a Halloween special!`);
-}
-
+            await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
 
             // Remover al usuario del cooldown después de un tiempo (ejemplo: 4 minutos)
             setTimeout(() => {
@@ -741,13 +671,7 @@ if (!isHalloweenCharacter) {
         if (!hasCardBeenGrabbed) {
             cardGrabbed.set(selectedCharacter._id, userId);
             cooldownUsers.add(reactingUser.id); // Agregar al usuario a la lista de cooldown
-            const isHalloweencard1 = selectedCharacter._id >= 200000;
 
-            const default_frame = isHalloweencard1 
-                ? 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png'
-                : 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
-            
-            const scratch = isHalloweencard1; // Se asigna directamente el valor boolean
             await addCardToInventory(reactingUser.id, {
                 _id: selectedCharacter._id,
                 name: selectedCharacter.name,
@@ -760,7 +684,7 @@ if (!isHalloweenCharacter) {
                 grabbed_by: reactingUser.id,
                 channel_id: message.channel.id,
                 guild_id: message.guild.id,
-                default_frame: default_frame,
+                default_frame: "'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png'",
                 morph_apply: "",
                 last_morph: "",
                 color_letter_name: "",
@@ -768,24 +692,11 @@ if (!isHalloweenCharacter) {
                 last_color_letter_series: "",
                 color_letter_series: "",
                 last_color_letter: "",
-                color_letter: "",
-                scratch: scratch
-                
+                color_letter: ""
             });
-// Determinar si el personaje es de Halloween basado en su ID
-const isHalloweenCharacter = selectedCharacter._id >= 200000;
 
-// Mensaje base
-const baseMessage = `${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`;
-
-// Enviar el mensaje con la versión de __v si no es de Halloween
-if (!isHalloweenCharacter) {
-    await message.channel.send(`${baseMessage} · \`#${selectedCharacter.__v}\``);
-} else {
-    // Mensaje para cartas de Halloween (puedes personalizarlo según necesites)
-    await message.channel.send(`${baseMessage} · 🎃 This card is a Halloween special!`);
-}
-
+            await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+          
 
             // Remover al usuario del cooldown después de un tiempo (ejemplo: 4 minutos)
             setTimeout(() => {
@@ -812,26 +723,7 @@ collector.on('end', async collected => {
         }
     }
 });
-async function addCandyToInventory(userId, candyAmount) {
-    const inventory = await fetchInventory(userId);
-    if (inventory) {
-        // Inicializa el array de caramelos si no existe
-        if (!Array.isArray(inventory.candy)) {
-            inventory.candy = [0]; 
-        }
 
-        // Reducer para sumar la nueva cantidad de caramelos en la posición 0
-        inventory.candy = inventory.candy.reduce((acc, curr, index) => {
-            // Sumar la cantidad de caramelos en la posición 0
-            if (index === 0) {
-                return [curr + candyAmount]; // Solo actualiza la posición 0
-            }
-            return [curr]; // Dejar las demás posiciones como están (si las hay)
-        }, [0]); // Inicializar con 0 en caso de que no haya elementos
-
-        await inventory.save();
-    }
-}
 console.log(`Drop executed by ${user.username} in channel ${channel.id} with ${updatedCharacters.length} characters.`);
     }
 }

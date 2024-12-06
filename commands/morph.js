@@ -37,92 +37,87 @@ function getRandomFrame() {
     // Fallback in case of rounding issues, return the last frame
     return frameMorphs[frameMorphs.length - 1];
 }
-async function drawCardPreview(card, morphType, retries = 3) {
+async function drawCardPreview(card, morphType, retries = 3) { 
     const cardWidth = 350;
-    const cardHeight = 500;
-
-    // Extraer el frame directamente de la carta y limpiar comillas adicionales si las hay
-    const default_frame = card.last_morph || (card.default_frame && card.default_frame.replace(/^['"]|['"]$/g, ''));
-
-    // Crear el canvas principal para la carta
+    const cardHeight = 550;
     const canvas = createCanvas(cardWidth, cardHeight);
     const context = canvas.getContext('2d');
-    context.fillStyle = '#36393F'; // Color de fondo
+
+    context.fillStyle = '#36393F'; // Fondo gris oscuro
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Cargar la imagen de la carta si está disponible
+    // Cargar y dibujar la imagen de la carta
     if (card.img_url) {
         try {
             const cardImage = await loadImage(card.img_url);
-            const imgAspectRatio = cardImage.width / cardImage.height;
-            const imgWidth = cardWidth - 50; // Margen
-            const imgHeight = imgWidth / imgAspectRatio; // Mantener la proporción
-
-            context.globalAlpha = 1.0; // Asegurarse de que sea opaco
-            context.drawImage(cardImage, 25, 50, imgWidth, imgHeight); // Ajustar las posiciones
+            context.globalAlpha = 1.0;
+            context.drawImage(cardImage, 10, 10, cardWidth - 20, cardHeight - 20);
         } catch (error) {
             console.error(`Error loading image for card ${card._id}:`, error);
         }
-    } else {
-        console.error('No image URL available for card:', card);
     }
 
-    // Dibujar el frame si está presente y es una URL válida
+    // Determinar el frame predeterminado o último usado
+    const default_frame = card.last_morph || (card.default_frame && card.default_frame.replace(/^['"]|['"]$/g, ''));
+    const isDarkOrangeFrame = (default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png');
+
+    // Dibujar el frame si es válido
     if (default_frame && /^https?:\/\//i.test(default_frame)) {
         try {
             const frameImg = await loadImage(default_frame);
-            const frameAspectRatio = frameImg.width / frameImg.height;
-            let frameWidth = cardWidth;
-            let frameHeight = cardHeight;
-
-            // Mantener la proporción del frame
-            if (frameAspectRatio > 1) {
-                frameHeight = cardHeight; // Alto fijo
-                frameWidth = cardHeight * frameAspectRatio; // Ajustar el ancho según la altura
-            } else {
-                frameWidth = cardWidth; // Ancho fijo
-                frameHeight = cardWidth / frameAspectRatio; // Ajustar la altura según el ancho
-            }
-
-            // Dibujar el frame en el canvas
-            context.drawImage(frameImg, (cardWidth - frameWidth) / 2, (cardHeight - frameHeight) / 2, frameWidth, frameHeight);
+            context.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
         } catch (error) {
             console.error(`Error loading frame image from URL ${default_frame}:`, error);
         }
-    } else {
-        console.error('Invalid frame image URL or missing frame:', default_frame);
     }
 
-    // Determinar los colores de los textos según los campos color_letter
-    const colorLetterName =  card.last_color_letter_name || '#000000'; // Default a negro
-    const colorLetterSeries =  card.last_color_letter_series || '#000000'; // Default a negro
-    const colorLetter =  card.last_color_letter || '#000000'; // Default a negro
+    // Determinar colores de texto
+    const colorLetterName = isDarkOrangeFrame ? '#FFFFFF' : (card.last_color_letter_name || '#000000');
+    const colorLetterSeries = isDarkOrangeFrame ? '#FFFFFF' : (card.last_color_letter_series || '#000000');
+    const colorLetter = isDarkOrangeFrame ? '#FFFFFF' : (card.last_color_letter || '#000000');
 
-    // Dibujar el número de versión
-    context.font = 'bold 22px "Bebas Neue"';
-    context.fillStyle = colorLetter; // Usar color_letter para el número de versión
-    context.textAlign = 'center';
-    context.fillText(`#${card.__v}`, cardWidth / 2, cardHeight - 84);
+    // Definir posición del texto
+    const textXPosition = cardWidth / 2;
 
-    // Dibujar el nombre del personaje con el color correspondiente
-    context.font = 'bold 30px "Bebas Neue"';
-    context.fillStyle = colorLetterName; // Usar color_letter_name para el nombre
-    context.textAlign = 'center';
+    if (!isDarkOrangeFrame) {
+        // Dibujar el número de versión
+        context.fillStyle = colorLetter;
+        context.font = 'bold 22px "Bebas Neue"';
+        context.textAlign = 'center';
+        context.fillText(`#${card.__v}`, textXPosition, cardHeight - 84);
 
-    let cardName = card.name.length > 15 ? card.name.slice(0, 14) + '-' : card.name;
-    const nameY = cardHeight - 50; // Posición ajustada para el nombre
-    context.fillText(cardName, cardWidth / 2, nameY);
+        // Dibujar el nombre del personaje
+        context.fillStyle = colorLetterName;
+        context.font = 'bold 30px "Bebas Neue"';
+        let cardName = card.name.length > 15 ? card.name.slice(0, 14) + '-' : card.name;
+        context.fillText(cardName, textXPosition, cardHeight - 50);
 
-    // Dibujar el nombre de la serie con el color correspondiente
-    context.font = '24px "Bebas Neue"';
-    context.fillStyle = colorLetterSeries; // Usar color_letter_series para la serie
-    let seriesText = card.series.length > 16 ? card.series.slice(0, 15) + '-' : card.series;
+        // Dibujar la serie
+        context.font = '24px "Bebas Neue"';
+        context.fillStyle = colorLetterSeries;
+        let seriesText = card.series.length > 16 ? card.series.slice(0, 15) + '-' : card.series;
+        wrapText(context, seriesText, textXPosition, cardHeight - 20, cardWidth - 40, 24);
+    } else {
+        // Si el frame es Dark Orange, omitir el número de versión
+        context.font = 'bold 30px "Bebas Neue"';
+        context.fillStyle = colorLetterName;
+        context.textAlign = 'center';
 
-    const seriesY = nameY + 30; // Asegurarse de que no se superponga con el nombre
-    wrapText(context, seriesText, cardWidth / 2, seriesY, cardWidth - 40, 24);
+        let cardName = card.name.length > 15 ? card.name.slice(0, 14) + '-' : card.name;
+        const nameY = cardHeight - 50; // Posición ajustada para el nombre
+        context.fillText(cardName, textXPosition, nameY);
+
+        context.font = '24px "Bebas Neue"';
+        context.fillStyle = colorLetterSeries;
+
+        let seriesText = card.series.length > 16 ? card.series.slice(0, 15) + '-' : card.series;
+        const seriesY = nameY + 30; // Espaciado entre nombre y serie
+        wrapText(context, seriesText, textXPosition, seriesY, cardWidth - 40, 24);
+    }
 
     return canvas;
 }
+
 
 // Helper function to wrap text
 function wrapText(context, text, x, y, maxWidth, lineHeight) {
@@ -144,11 +139,12 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
     context.fillText(line, x, lineY);
     return lineY + lineHeight;
 }
+
 module.exports = {
     name: 'morph',
     description: 'Morph different attributes of your card such as name, series, version, or frame.',
     async run(message, args) {
-        if (args.length < 1) {
+        if (!args.length) {
             return message.channel.send('Please provide the card code.');
         }
 
@@ -167,7 +163,7 @@ module.exports = {
             return message.channel.send('Card not found in your inventory.');
         }
 
-        // Step 1: Choose what to morph
+        // Step 1: Morph Selection
         const morphEmbed = new EmbedBuilder()
             .setTitle('🌟 Morph Your Card! 🌟')
             .setDescription(`**${card.name}** is ready to be morphed! Select an attribute to transform:\n\n🔮 **Version** (v)\n🎨 **Series**\n📝 **Name**\n🎭 **Frame**\n\nThis will cost **250 gold**.`)
@@ -178,197 +174,155 @@ module.exports = {
 
         const row = new ActionRowBuilder()
             .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('morph_version')
-                    .setLabel('Morph Version')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🔮'),
-                new ButtonBuilder()
-                    .setCustomId('morph_series')
-                    .setLabel('Morph Series')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🎨'),
-                new ButtonBuilder()
-                    .setCustomId('morph_name')
-                    .setLabel('Morph Name')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('📝'),
-                new ButtonBuilder()
-                    .setCustomId('morph_frame')
-                    .setLabel('Morph Frame')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🎭')
+                new ButtonBuilder().setCustomId('morph_version').setLabel('Morph Version').setStyle(ButtonStyle.Primary).setEmoji('🔮'),
+                new ButtonBuilder().setCustomId('morph_series').setLabel('Morph Series').setStyle(ButtonStyle.Primary).setEmoji('🎨'),
+                new ButtonBuilder().setCustomId('morph_name').setLabel('Morph Name').setStyle(ButtonStyle.Primary).setEmoji('📝'),
+                new ButtonBuilder().setCustomId('morph_frame').setLabel('Morph Frame').setStyle(ButtonStyle.Primary).setEmoji('🎭')
             );
 
         const morphMessage = await message.channel.send({ embeds: [morphEmbed], components: [row] });
 
         const filter = i => i.user.id === message.author.id;
-        const collector = morphMessage.createMessageComponentCollector({ filter, time: 60000 }); // 1 minuto
+        const collector = morphMessage.createMessageComponentCollector({ filter, time: 60000 });
 
-        collector.on('collect', async i => {
-            await i.deferUpdate(); // Defer update to avoid interaction not replied error
+        collector.on('collect', async interaction => {
+            await interaction.deferUpdate();
 
-            if (i.customId.startsWith('morph_')) {
-                const selectedMorph = i.customId.replace('morph_', '');
+            if (!interaction.customId.startsWith('morph_')) return;
 
-                // Step 2: Ask for confirmation
-                const confirmEmbed = new EmbedBuilder()
-                    .setTitle('Confirm Morph')
-                    .setDescription(`You have selected to morph the **${selectedMorph}** of **${card.name}**. This will cost **250 gold**.\n\nAre you sure?`)
-                    .setColor('#FFA500') // Orange for confirmation
-                    .setThumbnail(card.img_url)
-                    .setTimestamp();
+            const selectedMorph = interaction.customId.replace('morph_', '');
 
-                const confirmRow = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('confirm_morph')
-                            .setLabel('Confirm')
-                            .setStyle(ButtonStyle.Success),
-                        new ButtonBuilder()
-                            .setCustomId('cancel_morph')
-                            .setLabel('Cancel')
-                            .setStyle(ButtonStyle.Danger)
-                    );
+            // Step 2: Confirm Morph
+            const confirmEmbed = new EmbedBuilder()
+                .setTitle('Confirm Morph')
+                .setDescription(`You have selected to morph the **${selectedMorph}** of **${card.name}**. This will cost **250 gold**.\n\nAre you sure?`)
+                .setColor('#FFA500')
+                .setThumbnail(card.img_url)
+                .setTimestamp();
 
-                await morphMessage.edit({ embeds: [confirmEmbed], components: [confirmRow] });
+            const confirmRow = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder().setCustomId('confirm_morph').setLabel('Confirm').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId('cancel_morph').setLabel('Cancel').setStyle(ButtonStyle.Danger)
+                );
 
-                const confirmCollector = morphMessage.createMessageComponentCollector({ filter, time: 60000 }); // 1 minuto
+            await morphMessage.edit({ embeds: [confirmEmbed], components: [confirmRow] });
 
-                confirmCollector.on('collect', async interaction => {
-                    await interaction.deferUpdate(); // Defer update to avoid interaction not replied error
-                    if (interaction.customId === 'confirm_morph') {
-                        // Generate and send card preview
-                        const canvas = await drawCardPreview(card, selectedMorph);
-                        const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'morphed_card.png' });
+            const confirmCollector = morphMessage.createMessageComponentCollector({ filter, time: 60000 });
 
-                        // Second confirmation
-                        const verifyEmbed = new EmbedBuilder()
-                            .setTitle('Preview of Morph')
-                            .setDescription(`Here is the preview of your morphed card:\n**${card.name}** (Morphed: **${selectedMorph}**)\n\nAre you sure you want to apply this morph?`)
-                            .setColor('#1E90FF') // Blue for preview
-                            .setImage('attachment://morphed_card.png') // Set the preview image
-                            .setTimestamp();
+            confirmCollector.on('collect', async confirmation => {
+                await confirmation.deferUpdate();
 
-                        const verifyRow = new ActionRowBuilder()
-                            .addComponents(
-                                new ButtonBuilder()
-                                    .setCustomId('reroll_morph')
-                                    .setLabel('Reroll')
-                                    .setStyle(ButtonStyle.Secondary),
-                                new ButtonBuilder()
-                                    .setCustomId('final_confirm_morph')
-                                    .setLabel('Verify Morph')
-                                    .setStyle(ButtonStyle.Success)
-                            );
+                if (confirmation.customId === 'cancel_morph') {
+                    return morphMessage.edit({ content: 'Morph process has been cancelled.', components: [] });
+                }
 
-                        await interaction.followUp({ embeds: [verifyEmbed], files: [attachment], components: [verifyRow] });
+                if (confirmation.customId === 'confirm_morph') {
+                    if (userInventory.gold[0] < 250) {
+                        return confirmation.followUp({ content: 'Not enough gold to complete the morph.' });
+                    }
 
-                        const verifyCollector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 }); // 1 minuto
+                    userInventory.gold[0] -= 250;
+// Verificar si daily_stats y daily_morph existen antes de intentar actualizar
+const increased = await fetchInventory(user.id)
 
-                        verifyCollector.on('collect', async verifyInteraction => {
-                            await verifyInteraction.deferUpdate(); // Defer update to avoid interaction not replied error
-                            if (verifyInteraction.customId === 'final_confirm_morph') {
-                                // Deduct gold from array[0]
-                                if (userInventory.gold[0] >= 250) {
-                                    userInventory.gold[0] -= 250;
-                                } else {
-                                    return verifyInteraction.followUp({ content: 'Not enough gold to complete the morph.' });
-                                }
+if (!increased) {
+    console.error('No se encontró el inventario del usuario.');
+    return;
+}
 
-                                // Apply the morph
-                                switch (selectedMorph) {
-                                    case 'version':
-                                        card.last_color_letter = generateHexCode(); // Store last color letter
-                                        break;
-                                    case 'series':
-                                        card.last_color_letter_series = generateHexCode(); // Store last color letter series
-                                      
-                                        break;
-                                    case 'name':
-                                        card.last_color_letter_name = generateHexCode(); // Store last color letter name
-                                     
-                                        break;
-                                    case 'frame':
-                                       
-                                        card.last_morph = getRandomFrame(); // Store previous frame
-                                       
-                                      
-                                        break;
-                                }
+// Verificar si existe el campo `daily_stats` como un array
+if (!Array.isArray(increased.daily_stats) || increased.daily_stats.length === 0) {
+    // Si el array no existe o está vacío, inicializar con un objeto que contiene `daily_drops`
+    increased.daily_stats = [{ daily_morph: 1 }];
+} else {
+    // Si ya existe, asegurarse de que `daily_drops` esté definido e incrementar su valor
+    const stats = increased.daily_stats[0]; // Suponemos que trabajamos con el primer objeto del array
+    stats.daily_drops = (stats.daily_morph || 0) + 1;
+}
 
-                                // Update the inventory
-                                await updateInventory(userId, userInventory);
+// Guardar los cambios en la base de datos
+await increased.save();
+console.log('Daily stats actualizado:', increased.daily_stats);
 
-                                // Generate and send updated card preview
-                                const updatedCanvas = await drawCardPreview(card, selectedMorph);
-                                const updatedAttachment = new AttachmentBuilder(updatedCanvas.toBuffer(), { name: 'updated_morphed_card.png' });
+                    const newColorHex = generateHexCode();
+                    switch (selectedMorph) {
+                        case 'version':
+                            card.last_color_letter = newColorHex;
+                            break;
+                        case 'series':
+                            card.last_color_letter_series = newColorHex;
+                            break;
+                        case 'name':
+                            card.last_color_letter_name = newColorHex;
+                            break;
+                        case 'frame':
+                            card.last_morph = getRandomFrame();
+                            break;
+                    }
 
-                                await verifyInteraction.followUp({ content: 'Morph applied successfully!', files: [updatedAttachment] });
-                            } else if (verifyInteraction.customId === 'reroll_morph') {
-                                const newColorHex = generateHexCode();
-                                
-                                // Actualizar el color de la carta
-                                card.color_letter = newColorHex; // Actualiza el color de la carta
-                                
-                                // Generar y enviar la vista previa de la carta después del reroll
-                                const rerollCanvas = await drawCardPreview(card, selectedMorph);
-                                const rerollAttachment = new AttachmentBuilder(rerollCanvas.toBuffer(), { name: 'rerolled_card.png' });
+                    await updateInventory(userId, userInventory);
 
-                                const rerollEmbed = new EmbedBuilder()
-                                    .setTitle('Reroll Successful!')
-                                    .setDescription(`New color applied: ${newColorHex}. Here is the updated preview of your card:`)
-                                    .setColor('#32CD32') // Verde para el reroll
-                                    .setImage('attachment://rerolled_card.png')
-                                    .setTimestamp();
+                    const updatedCanvas = await drawCardPreview(card, selectedMorph);
+                    const updatedAttachment = new AttachmentBuilder(updatedCanvas.toBuffer(), { name: 'updated_morphed_card.png' });
 
-                                const rerollRow = new ActionRowBuilder()
-                                    .addComponents(
-                                        new ButtonBuilder()
-                                            .setCustomId('reroll_morph')
-                                            .setLabel('Reroll Again')
-                                            .setStyle(ButtonStyle.Secondary),
-                                        new ButtonBuilder()
-                                            .setCustomId('final_confirm_morph')
-                                            .setLabel('Verify Morph')
-                                            .setStyle(ButtonStyle.Success)
-                                    );
+                    const rerollEmbed = new EmbedBuilder()
+                        .setTitle('Reroll Your Morph?')
+                        .setDescription(`You morphed **${selectedMorph}**. Do you want to reroll for a different outcome?`)
+                        .setColor('#1E90FF')
+                        .setImage('attachment://updated_morphed_card.png')
+                        .setTimestamp();
 
-                                await verifyInteraction.followUp({ embeds: [rerollEmbed], files: [rerollAttachment], components: [rerollRow] });
+                    const rerollRow = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder().setCustomId('reroll_morph').setLabel('Reroll').setStyle(ButtonStyle.Secondary),
+                            new ButtonBuilder().setCustomId('keep_morph').setLabel('Keep').setStyle(ButtonStyle.Success)
+                        );
 
-                                verifyCollector.stop();
-                                return;
-                            }
+                    await confirmation.followUp({
+                        embeds: [rerollEmbed],
+                        files: [updatedAttachment],
+                        components: [rerollRow]
+                    });
 
-                            // Apply the final morph after verification
+                    const rerollCollector = morphMessage.createMessageComponentCollector({ filter, time: 120000 });
+
+                    rerollCollector.on('collect', async rerollInteraction => {
+                        await rerollInteraction.deferUpdate();
+
+                        if (rerollInteraction.customId === 'reroll_morph') {
+                            const rerollColorHex = generateHexCode();
+
                             switch (selectedMorph) {
                                 case 'version':
-                                    card.last_color_letter = card.last_color_letter;
+                                    card.last_color_letter = rerollColorHex;
                                     break;
                                 case 'series':
-                                    card.last_color_letter_series = card.color_letter_series;
+                                    card.last_color_letter_series = rerollColorHex;
                                     break;
                                 case 'name':
-                                    card.last_color_letter_name = card.color_letter_name;
+                                    card.last_color_letter_name = rerollColorHex;
                                     break;
                                 case 'frame':
-                                    card.last_morph = card.morph_apply;
+                                    card.last_morph = getRandomFrame();
                                     break;
                             }
-                            await updateInventory(userId, userInventory);
-                        });
-                    } else if (interaction.customId === 'cancel_morph') {
-                        await interaction.followUp({ content: 'Morph process has been cancelled.' });
-                    }
-                    confirmCollector.stop();
-                });
-            }
-        });
 
-        collector.on('end', collected => {
-            if (collected.size === 0) {
-                morphMessage.edit({ content: 'Morph process timed out.', components: [] });
-            }
+                            await updateInventory(userId, userInventory);
+
+                            const rerollCanvas = await drawCardPreview(card, selectedMorph);
+                            const rerollAttachment = new AttachmentBuilder(rerollCanvas.toBuffer(), { name: 'rerolled_card.png' });
+
+                            await rerollInteraction.followUp({
+                                content: 'Your morph was rerolled successfully!',
+                                files: [rerollAttachment]
+                            });
+                        } else if (rerollInteraction.customId === 'keep_morph') {
+                            await rerollInteraction.followUp({ content: 'You kept your current morph.', components: [] });
+                        }
+                    });
+                }
+            });
         });
     }
 };
