@@ -165,7 +165,7 @@ module.exports = {
                 )
             });
 
-            // Enviar la carta como imagen
+            //randomissue()
             await message.channel.send({
                 content: `You scratched a card! Here is your card with #: **#${cardToScratch.__v}**\nYou now have **${inventory.scratch}** scratch cards left.`,
                 files: [attachment]

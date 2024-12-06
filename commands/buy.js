@@ -22,9 +22,13 @@ module.exports = {
         const items = {
             'extra grab': { cost: 1, type: 'extra_grab', currency: 'shines' },
             'extra drop': { cost: 1, type: 'extra_drop', currency: 'shines' },
+            'extra drops': { cost: 20, type: 'extra_drop', currency: 'moons' },
+            'extra grabs': { cost: 20, type: 'extra_grab', currency: 'moons' },
+
             'banner box': { cost: 1000, type: 'Box_banner', currency: 'gold' },
             'titles box': { cost: 1000, type: 'Box_title', currency: 'gold' },
             'divinity absolute': { cost: 600, type: 'DivinityAbsolute', currency: 'moons' },
+            'vanish': { cost: 15, type: 'vanish', currency: 'moons' },
             'fast hands': { cost: 100, type: 'FastHands', currency: 'moons' },
             'glows': { cost: 50, type: 'Glows', currency: 'moons' },
             'god of evasion': { cost: 400, type: 'GodofEvasion', currency: 'moons' },

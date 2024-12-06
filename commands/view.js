@@ -37,58 +37,88 @@ async function createCardCanvas(character) {
         }
     }
 
-    // Dibujar el frame
-    const default_frame = character.default_frame && character.default_frame.replace(/^['"]|['"]$/g, '');
-    if (default_frame && /^https?:\/\//i.test(default_frame)) {
-        try {
-            const frameImg = await loadImage(default_frame);
-            context.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
-        } catch (error) {
-            console.error(`Error loading frame image from URL ${default_frame}:`, error);
-        }
+    // Determinar el marco a usar
+    const defaultOriginalFrame = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
+    const isDarkOrangeFrame = character.default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png';
+    const isCyberAttackFrame = character.frame?.name?.toLowerCase() === 'cyber attack frame';
+    const isBatFrame = character.frame?.name?.toLowerCase() === 'bat frame';
+    
+    let frameUrl = character.frame?.image_card || character.default_frame || defaultOriginalFrame;
+
+    // Si no se encuentra frame válido, usar el original por defecto
+    if (!frameUrl || !/^https?:\/\//i.test(frameUrl)) {
+        frameUrl = defaultOriginalFrame;
     }
 
-    // Determinar colores de texto y ajustar si es el frame especificado
-    const isDarkOrangeFrame = (default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png');
-    const colorLetterName = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_name || '#000000');
-    const colorLetterSeries = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter_series || '#000000');
-    const colorLetter = isDarkOrangeFrame ? '#FFFFFF' : (character.color_letter || '#000000');
+    try {
+        const frameImg = await loadImage(frameUrl);
+        context.drawImage(frameImg, 0, 0, cardWidth, cardHeight);
+    } catch (error) {
+        console.error(`Error loading frame image from URL ${frameUrl}:`, error);
+    }
 
-    // Definir textXPosition como la posición horizontal central del card
+    // Colores de texto
+    const colorLetterName = isBatFrame 
+        ? '#FF0000' 
+        : (isDarkOrangeFrame || isCyberAttackFrame) 
+        ? '#FFFFFF' 
+        : (character.color_letter_name || '#000000');
+
+    const colorLetterSeries = isBatFrame 
+        ? '#FF0000' 
+        : (isDarkOrangeFrame || isCyberAttackFrame) 
+        ? '#FFFFFF' 
+        : (character.color_letter_series || '#000000');
+
+    const colorLetter = isBatFrame 
+        ? '#FF0000' 
+        : (isDarkOrangeFrame || isCyberAttackFrame) 
+        ? '#FFFFFF' 
+        : (character.color_letter || '#000000');
+
+    // Ajuste de posición vertical para "cyber attack frame" y "bat frame"
+    const yAdjustment = isCyberAttackFrame ? -10 : (isBatFrame ? -15 : 0);
+
+    // Definir posición de texto
     const textXPosition = cardWidth / 2;
 
-    // Si el frame no es Dark Orange, dibujar el __v, nombre y serie
-    if (!isDarkOrangeFrame) {
+    if (!isDarkOrangeFrame && !isCyberAttackFrame && !isBatFrame) {
+        // Dibujar el número de versión (__v), nombre y serie
         context.fillStyle = colorLetter;
         context.font = 'bold 22px "Bebas Neue"';
         context.textAlign = 'center';
-        context.fillText(`#${character.__v}`, cardWidth / 2, cardHeight - 84);
-        
-        let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
-        wrapText(context, seriesText, textXPosition, cardHeight - 20, cardWidth - 40, 24);
-        
-        context.fillStyle = colorLetterName;
-        let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
-        context.fillText(characterName, textXPosition, cardHeight - 50);
-    }
+        context.fillText(`#${character.__v}`, textXPosition, cardHeight - 84);
 
-    // Ajustar posición de texto si el frame es Dark Orange y se omite el __v
-    if (isDarkOrangeFrame) {
-        // Solo dibujar el nombre y la serie una vez, si el frame es Dark Orange
+        const seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
+        wrapText(context, seriesText, textXPosition, cardHeight - 20, cardWidth - 40, 24);
+
+        context.fillStyle = colorLetterName;
+        const characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
+        context.fillText(characterName, textXPosition, cardHeight - 50);
+    } else {
+        // Ajuste para "Dark Orange", "cyber attack frame" y "bat frame"
+        // Dibujar el número de versión (__v) sólo si no es Dark Orange
+        if (!isDarkOrangeFrame) {
+            context.fillStyle = colorLetter;
+            context.font = 'bold 22px "Bebas Neue"';
+            context.textAlign = 'center';
+            context.fillText(`#${character.__v}`, textXPosition, cardHeight - 84);
+        }
+
+        // Dibujar nombre
         context.font = 'bold 30px "Bebas Neue"';
-        context.fillStyle = colorLetterName; // Usar color_letter_name para el nombre
+        context.fillStyle = colorLetterName;
         context.textAlign = 'center';
 
-        let characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
-        const nameY = cardHeight - 50; // Posición ajustada para el nombre
+        const characterName = character.name.length > 15 ? character.name.slice(0, 14) + '-' : character.name;
+        const nameY = cardHeight - 50 + yAdjustment;
         context.fillText(characterName, textXPosition, nameY);
 
-        // Dibujar el nombre de la serie con el color correspondiente
+        // Dibujar serie
         context.font = '24px "Bebas Neue"';
-        context.fillStyle = colorLetterSeries; // Usar color_letter_series para la serie
-        let seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
-
-        const seriesY = nameY + 30; // Asegurarse de que no se superponga con el nombre
+        context.fillStyle = colorLetterSeries;
+        const seriesText = character.series.length > 16 ? character.series.slice(0, 15) + '-' : character.series;
+        const seriesY = nameY + 30;
         wrapText(context, seriesText, textXPosition, seriesY, cardWidth - 40, 24);
     }
 
@@ -115,6 +145,7 @@ function wrapText(context, text, x, y, maxWidth, lineHeight) {
     context.fillText(line, x, lineY);
     return lineY + lineHeight;
 }
+
 
 
 module.exports = {

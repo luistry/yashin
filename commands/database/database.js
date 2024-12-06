@@ -15,6 +15,7 @@ const inventorySchema = new mongoose.Schema({
     last_drop: Date,
     last_grab: Date,
     last_vote: Date,
+    daily_mision: Date,
     tags: [],
     moons: [],
     Box_banner: [],
@@ -40,6 +41,14 @@ const inventorySchema = new mongoose.Schema({
     cards: [],
     extra_grab: [],
     extra_drop: [],
+    daily_stats: [
+        {
+            daily_drops: { type: Number, default: 0 },
+            daily_burn: { type: Number, default: 0 },
+            daily_morph: { type: Number, default: 0 }
+        }
+    ],
+    vanish: [],
      Frames:[{
         name: { type: String, required: true },
         quantity: { type: Number, required: true },
@@ -49,7 +58,8 @@ const inventorySchema = new mongoose.Schema({
     witch_dust: [],
     scratch: [],
     Halloween_Box_banner: [],
-    Halloween_frame_box: []
+    Halloween_frame_box: [],
+    esence_soul: []
     
 }, { collection: 'inventory' });
 
@@ -144,6 +154,7 @@ async function registerUser(userId, username) {
             stellar_dust: [],      // Inicializa como un array vacío
             user_id: userId,
             username: username,
+            daily_mision: Date,
             last_daily: null,
             last_drop: null,
             extra_grab: [],        // Inicializa como un array vacío
@@ -151,6 +162,13 @@ async function registerUser(userId, username) {
             last_grab: null,
             last_vote: null,
             tags: [],
+            daily_stats: [
+                {
+                    daily_drops: { type: Number, default: 0 },
+                    daily_burn: { type: Number, default: 0 },
+                    daily_morph: { type: Number, default: 0 }
+                }
+            ],
                mails: [],
             referers: [],
             user_referer: [],
@@ -165,6 +183,8 @@ async function registerUser(userId, username) {
     Glows: [],
     FastHands: [],
     SpeedOfReaction: [],
+    vanish: [],
+    esence_soul: [],
             Buffs: [],
             wishlist_channel: String,
             info: [],
@@ -172,6 +192,7 @@ async function registerUser(userId, username) {
             cards: [],
             Frames: [],// Inicializa como un array vacío
         });
+        
 
         await newUser.save();
         console.log('User registered successfully');
@@ -379,12 +400,12 @@ async function deleteInventory(userId) {
 
 const applyFrameToCard = async (userId, cardCode, frameName) => {
     try {
-        console.log(`Intentando aplicar el marco ${frameName} a la carta ${cardCode} para el usuario ${userId}`);
+        console.log(`Intentando aplicar el marco "${frameName}" a la carta "${cardCode}" para el usuario ${userId}`);
 
-        // Obtén el inventario del usuario
+        // Obtener el inventario del usuario
         const userInventory = await fetchInventory(userId);
         if (!userInventory) {
-            console.error('Inventario no encontrado.');
+            console.error('Inventario no encontrado para el usuario.');
             return false;
         }
         console.log('Inventario del usuario encontrado.');
@@ -392,7 +413,7 @@ const applyFrameToCard = async (userId, cardCode, frameName) => {
         // Buscar la carta correspondiente en el inventario
         const cardIndex = userInventory.cards.findIndex(c => c.code === cardCode);
         if (cardIndex === -1) {
-            console.error('Carta no encontrada.');
+            console.error(`Carta no encontrada: ${cardCode}`);
             return false;
         }
         console.log(`Carta encontrada: ${cardCode}`);
@@ -403,10 +424,13 @@ const applyFrameToCard = async (userId, cardCode, frameName) => {
             return false;
         }
 
-        // Buscar el marco en el inventario del usuario
-        const frameIndex = userInventory.Frames.findIndex(f => f.name.toLowerCase() === frameName.toLowerCase());
+        // Buscar el marco en el inventario del usuario (normalizando nombres)
+        const frameIndex = userInventory.Frames.findIndex(
+            f => f.name.trim().toLowerCase() === frameName.trim().toLowerCase()
+        );
         if (frameIndex === -1) {
             console.error(`Marco no encontrado: ${frameName}`);
+            console.log('Marcos disponibles:', userInventory.Frames.map(f => f.name));
             return false;
         }
         const frame = userInventory.Frames[frameIndex];
@@ -414,18 +438,18 @@ const applyFrameToCard = async (userId, cardCode, frameName) => {
 
         // Actualizar el campo del marco en la carta
         userInventory.cards[cardIndex].frame = {
-            name: frameName,
-            image_card: frame.image // Asegúrate de que 'image' es la propiedad correcta
+            name: frame.name, // Usa el nombre del marco como está en el inventario
+            image_card: frame.image // Asegúrate de que 'image' es el campo correcto
         };
-        console.log(`Marco ${frameName} aplicado a la carta ${cardCode}`);
+        console.log(`Marco "${frameName}" aplicado a la carta "${cardCode}".`);
 
-        // Reducir la cantidad o eliminar el marco si la cantidad es 1
+        // Reducir la cantidad del marco o eliminarlo si la cantidad es 1
         if (frame.quantity > 1) {
             userInventory.Frames[frameIndex].quantity -= 1;
-            console.log(`Cantidad del marco ${frameName} reducida a ${userInventory.Frames[frameIndex].quantity}`);
+            console.log(`Cantidad del marco "${frameName}" reducida a ${userInventory.Frames[frameIndex].quantity}.`);
         } else {
             userInventory.Frames.splice(frameIndex, 1);
-            console.log(`Marco ${frameName} eliminado del inventario.`);
+            console.log(`Marco "${frameName}" eliminado del inventario.`);
         }
 
         // Actualizar el inventario del usuario en la base de datos
@@ -434,24 +458,25 @@ const applyFrameToCard = async (userId, cardCode, frameName) => {
             {
                 $set: {
                     cards: userInventory.cards,
-                    Frames: userInventory.Frames
+                    Frames: userInventory.Frames // Asegúrate de usar el nombre correcto
                 }
             },
             { new: true } // Devuelve el documento actualizado
         );
 
         if (!updateResult) {
-            console.error('No se pudo actualizar el inventario.');
+            console.error('No se pudo actualizar el inventario en la base de datos.');
             return false;
         }
 
-        console.log('Inventario guardado correctamente.');
+        console.log('Inventario actualizado y guardado correctamente.');
         return true;
     } catch (error) {
         console.error('Error al aplicar el marco a la carta:', error);
         return false;
     }
 };
+
 
 
 // Función para actualizar la cantidad de oro del usuario y la fecha de la última recompensa diaria
@@ -550,7 +575,8 @@ const animeCharacterSchema = new mongoose.Schema({
         default: 0
     },
     burned: { type: Number, default: 0}, 
-    event: {type: String}
+    event: {type: String},
+    misingversion: []
 
 }, { collection: 'animeCharacters' });
 
@@ -1153,6 +1179,72 @@ async function insertAnimeCharacters() {
 }
 //
 
+const updateMissingVersions = async () => {
+    try {
+        // Obtener todos los inventarios
+        const allInventories = await fetchAllInventories();
+
+        // Obtener todos los personajes desde la base de datos
+        const animeCharacters = await AnimeCharacter.find({}); // Reemplaza con tu modelo real de MongoDB
+
+        // Iterar sobre cada personaje para calcular sus versiones faltantes
+        for (const character of animeCharacters) {
+            const missingVersionsSet = new Set(); // Usar Set para evitar duplicados
+
+            // Crear un Set con las versiones presentes en los inventarios para este personaje
+            const presentVersions = new Set();
+
+            // Recorrer todos los inventarios y recopilar las versiones del personaje
+            allInventories.forEach(inventory => {
+                if (Array.isArray(inventory.cards)) {
+                    inventory.cards.forEach(card => {
+                        if (card?._id?.toString && card.__v !== undefined) {
+                            if (card._id.toString() === character._id.toString()) {
+                                presentVersions.add(card.__v);
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Encontrar versiones faltantes desde 0 hasta el máximo __v del personaje
+            for (let version = 0; version <= character.__v; version++) {
+                if (!presentVersions.has(version)) {
+                    missingVersionsSet.add(version); // Agregar versiones faltantes al Set
+                }
+            }
+
+            const missingVersions = Array.from(missingVersionsSet); // Convertir Set a Array
+
+            // Verificar si hay cambios antes de actualizar
+            if (missingVersions.length > 0) {
+                // Actualizar directamente en la base de datos para evitar conflictos de versión
+                await AnimeCharacter.findOneAndUpdate(
+                    { _id: character._id }, // Buscar por _id
+                    { misingversion: missingVersions }, // Actualizar `misingversion`
+                    { new: true } // Devolver el documento actualizado
+                );
+
+                // Log de progreso
+                console.log(
+                    `Personaje: ${character.name} (${character._id}) - Missing versions actualizadas:`,
+                    missingVersions
+                );
+            } else {
+                console.log(
+                    `Personaje: ${character.name} (${character._id}) - Todas las versiones están presentes.`
+                );
+            }
+        }
+
+        console.log("Actualización completa de missingversion en todos los personajes.");
+    } catch (error) {
+        console.error("Error actualizando missingversion en personajes:", error);
+    }
+};
+
+// Ejecutar la función
+//updateMissingVersions();
 
 
 // Función para manejar el voto de un usuario

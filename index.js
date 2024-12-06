@@ -5,14 +5,13 @@ const { Prefix } = require('./commands/database/database'); // Modelo de prefijo
 const checkUserMiddleware = require('./commands/utils/middlewarecheckregister');
 
 const client = new Client({
-    intents: 53608447,
-    makeCache: Options.cacheWithLimits({
-        MessageManager: 50, // Limitar caché de mensajes a 50
-    }),
-    messageCacheLifetime: 60, // Duración del caché de mensajes en segundos
-    messageSweepInterval: 120 // Intervalo de limpieza de caché en segundos
+	intents: 53608447,
+	makeCache: Options.cacheWithLimits({
+		MessageManager: 50, // Limitar caché de mensajes a 50
+	}),
+	messageCacheLifetime: 60, // Duración del caché de mensajes en segundos
+	messageSweepInterval: 120, // Intervalo de limpieza de caché en segundos
 });
-
 const allowedUserId = ['346799501878755342','339869018439548938','123864968461287428','300619060729610258','270681503665618954'];
 let maintenanceMode = false;
 const commandQueue = [];

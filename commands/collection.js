@@ -1,9 +1,10 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js'); 
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { fetchInventory } = require('./database/database');
 
 module.exports = {
-    name: 'collection',
+    name: 'c',
     description: 'Show the cards in the collection, optionally of another user.',
+    
     async run(message) {
         const mentionedUser = message.mentions.users.first();
         const providedId = message.content.split(' ')[1];
@@ -21,7 +22,6 @@ module.exports = {
 
         try {
             console.log(`Fetching inventory for user ID: ${userId}`);
-
             const inventory = await fetchInventory(userId);
             console.log('Inventory fetched:', inventory);
 
@@ -30,36 +30,49 @@ module.exports = {
             }
 
             let cards = inventory.cards;
-
             const contentAfterCommand = message.content.slice(message.content.indexOf(' ') + 1).trim();
             const searchQuery = mentionedUser || (providedId && providedId.match(/^\d{17,19}$/)) 
                 ? contentAfterCommand.replace(providedId, '').trim()
                 : contentAfterCommand;
 
+            console.log('Search query:', searchQuery);
+
             if (searchQuery) {
                 const characterMatch = searchQuery.match(/name:\s*([\w\s]+)/i);
                 if (characterMatch) {
                     const characterName = characterMatch[1].toLowerCase().trim();
+                    console.log(`Filtering by character name: ${characterName}`);
                     cards = cards.filter(card => card.name && card.name.toLowerCase().includes(characterName));
                 }
 
                 const seriesMatch = searchQuery.match(/series:\s*([\w\s]+)/i);
                 if (seriesMatch) {
                     const seriesName = seriesMatch[1].toLowerCase().trim();
+                    console.log(`Filtering by series name: ${seriesName}`);
                     cards = cards.filter(card => card.series && card.series.toLowerCase().includes(seriesName));
                 }
 
-                const tagMatch = searchQuery.match(/t:\s*([\w\s]+)/i);
-                if (tagMatch) {
+                // Filtrar por "event" o "tagName", pero no ambos al mismo tiempo
+                if (/event:\s*([\w\s]+)/i.test(searchQuery)) {
+                    const eventMatch = searchQuery.match(/event:\s*([\w\s]+)/i);
+                    const eventName = eventMatch[1].trim();
+                    console.log(`Filtering by event: "${eventName}"`);
+                    cards = cards.filter(card => card.event && card.event.toLowerCase().includes(eventName.toLowerCase()));
+                } else if (/t:\s*([\w\s]+)/i.test(searchQuery)) {
+                    const tagMatch = searchQuery.match(/t:\s*([\w\s]+)/i);
                     const tagName = tagMatch[1].toLowerCase().trim();
+                    console.log(`Filtering by tag: ${tagName}`);
                     cards = cards.filter(card => card.tagName && card.tagName.toLowerCase().includes(tagName));
                 }
 
                 const orderMatch = searchQuery.match(/o:p/i);
                 if (orderMatch) {
+                    console.log('Sorting by __v property');
                     cards = cards.sort((a, b) => (a.__v || 0) - (b.__v || 0));
                 }
             }
+
+            console.log('Filtered cards:', cards);
 
             const itemsPerPage = 8;
             let currentPage = 0;
@@ -74,27 +87,18 @@ module.exports = {
                     });
 
                 const cardDescriptions = pageCards.map(card => {
-                    if (!card.name) return '';
-
+                    if (!card.name || !card.code || !card.series) return '';
                     const code = card.code || 'Unknown Code';
                     const name = card.name || 'Unknown Name';
                     const series = card.series || 'Unknown Series';
                     const rarityInitial = card.rarity ? card.rarity.charAt(0).toUpperCase() : 'Unknown';
-
-                    // Verificar si scratch es true y el default_frame es el especificado
-                    const __v = (card.scratch && card.default_frame === 'https://yashin.nyc3.cdn.digitaloceanspaces.com/Dark_Orange.png') 
-                        ? 'Halloween 2024 🎃' 
-                        : card.__v !== undefined 
-                        ? card.__v 
-                        : 'Unknown';
-
+                    const __v = card.scratch ? 'Halloween 2024 🎃' : card.__v || 'Unknown';
                     const tagPrefix = card.tagName ? String.fromCodePoint(card.tagName.codePointAt(0)) : '⬛';
 
                     return `${tagPrefix} \`${code}\` • \`${name}\` • \`${series}\` • #${__v} • ${rarityInitial}`;
-                }).filter(description => description !== '').join('\n');
+                }).filter(description => description).join('\n');
 
-                embed.setDescription(cardDescriptions);
-
+                embed.setDescription(cardDescriptions || 'No valid card descriptions available.');
                 return embed;
             };
 
@@ -103,6 +107,7 @@ module.exports = {
                 const end = Math.min(start + itemsPerPage, cards.length);
                 const pageCards = cards.slice(start, end);
 
+                console.log(`Sending page ${page + 1} with cards from ${start} to ${end}`);
                 let embed = generateEmbed(pageCards);
 
                 const row = new ActionRowBuilder()
@@ -135,7 +140,6 @@ module.exports = {
                     sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
                 }
             };
-
             const handleInteraction = async (interaction) => {
                 try {
                     if (interaction.customId === 'first') {
@@ -162,10 +166,8 @@ module.exports = {
                     console.error('Error handling button interaction:', error);
                 }
             };
-
             await sendPage(currentPage);
 
-            // Preload and handle future interactions without expiration
             const collector = message.channel.createMessageComponentCollector({ time: 3600000 });
 
             collector.on('collect', async i => {
