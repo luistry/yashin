@@ -23,7 +23,7 @@ module.exports = {
             .setTitle('Shop - Page 2')
             .setDescription('Here are the powerful Divinity items available for purchase.')
             .addFields(
-                { name: 'Vanish Drop', value: 'Cost: 5 🌙\nObtain the ability to Drop Burned/Despawned cards.', inline: false },
+                { name: 'Vanish Drop', value: 'Cost: 15 🌙\nObtain the ability to Drop Burned/Despawned cards.', inline: false },
                 { name: 'Divinity Absolute', value: 'Cost: 600 🌙\nReach a divine state and drop 4 cards every day for a month.', inline: false },
                 { name: 'God of Evasion', value: 'Cost: 400 🌙\nYou have a 30% chance to ignore the active cooldown and grab a card.', inline: false },
                 { name: 'Fast Hands', value: 'Cost: 100 🌙\nReduce Grab cooldown to half for 1 month.', inline: false },

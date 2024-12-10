@@ -175,15 +175,6 @@ function formatCooldown(type, lastCooldown, duration) {
 
 
 // Fetch character by ID
-async function fetchCharacterById(id) {
-    try {
-        const character = await AnimeCharacter.findOne({ _id: id }).exec();
-        return character || null;
-    } catch (error) {
-        console.error('Error fetching character:', error);
-        return null;
-    }
-}
 
 // Generate a random alphanumeric code
 function generateRandomCode(length) {
@@ -204,22 +195,35 @@ function getRandomRarity() {
 // Update character stats
 async function updateCharacterStats(id, rarity) {
     try {
-        const character = await AnimeCharacter.findOne({ _id: id }).exec();
+        // Asegúrate de que id es un número entero (Int32)
+        const characterId = parseInt(id, 10);  // Convierte el id a número entero
+
+        // Verifica que el id sea un número entero
+        if (isNaN(characterId)) {
+            console.error('ID is not a valid integer:', id);
+            return null;
+        }
+
+        // Busca el personaje usando el ID como número entero
+        const character = await AnimeCharacter.findOne({ _id: characterId }).exec();
+        
         if (character) {
             character.generate = (character.generate || 0) + 1;
-            character.__v = (character.__v || 0) + 1;
             character.code = generateRandomCode(Math.floor(Math.random() * 4) + 3);
             character.rarity = rarity;
 
             await character.save();
             return { code: character.code, rarity };
+        } else {
+            console.log('Character not found');
+            return null; // Si no se encuentra el personaje, retorna null
         }
-        return null;
     } catch (error) {
         console.error('Error updating character stats:', error);
         return null;
     }
 }
+
 
 // Handle cooldown logic for drop
 const HALF_COOLDOWN_DURATION_DROP = 10 * 60 * 1000; // 10 minutes if buff active
@@ -546,6 +550,29 @@ module.exports = {
         for (let i = 0; i < numberOfCharactersToShow; i++) {
             await msg.react(emojis[i]);
         }
+        const increased = await fetchInventory(userId);
+
+                        if (!increased) {
+                            console.error('No se encontró el inventario del usuario.');
+                            return;
+                        }
+                        
+                        // Verificar si el campo `daily_stats` existe y es un array válido
+                        if (!Array.isArray(increased.daily_stats) || increased.daily_stats.length === 0) {
+                            // Inicializar con un objeto que contiene `daily_burn`
+                            increased.daily_stats = [{daily_drops: 1 }];
+                        } else {
+                            // Trabajar con el primer objeto del array `daily_stats`
+                            const stats = increased.daily_stats[0];
+                        
+                            // Incrementar el contador `daily_burn` del primer objeto
+                            stats.daily_drops = (stats.daily_drops || 0) + 1;
+                        }
+                        
+                        // Guardar los cambios en la base de datos
+                        await increased.save();
+                        console.log('Daily stats actualizado:', increased.daily_stats);
+                        
 //reactions to add the card grabbed
 const filter = (reaction, user) => emojis.includes(reaction.emoji.name) && !user.bot;
 const cardGrabbed = new Map(); 

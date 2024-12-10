@@ -154,7 +154,7 @@ async function registerUser(userId, username) {
             stellar_dust: [],      // Inicializa como un array vacío
             user_id: userId,
             username: username,
-            daily_mision: Date,
+           
             last_daily: null,
             last_drop: null,
             extra_grab: [],        // Inicializa como un array vacío
@@ -162,13 +162,6 @@ async function registerUser(userId, username) {
             last_grab: null,
             last_vote: null,
             tags: [],
-            daily_stats: [
-                {
-                    daily_drops: { type: Number, default: 0 },
-                    daily_burn: { type: Number, default: 0 },
-                    daily_morph: { type: Number, default: 0 }
-                }
-            ],
                mails: [],
             referers: [],
             user_referer: [],
@@ -184,6 +177,14 @@ async function registerUser(userId, username) {
     FastHands: [],
     SpeedOfReaction: [],
     vanish: [],
+    daily_mision: null, // Usamos Date.now como valor por defecto
+    daily_stats: [
+        {
+            daily_drops: 0,  // Cambié esto
+            daily_burn: 0,   // Cambié esto
+            daily_morph: 0   // Cambié esto
+        }
+    ],
     esence_soul: [],
             Buffs: [],
             wishlist_channel: String,
@@ -220,6 +221,15 @@ async function fetchLastDaily(userId) {
     try {
         const user = await Inventory.findOne({ user_id: userId });
         return user ? user.last_daily : null;
+    } catch (err) {
+        console.error('Error fetching last daily:', err);
+        throw err;
+    }
+}
+async function fetchLastmision(userId) {
+    try {
+        const user = await Inventory.findOne({ user_id: userId });
+        return user ? user.daily_mision : null;
     } catch (err) {
         console.error('Error fetching last daily:', err);
         throw err;
@@ -1268,5 +1278,5 @@ module.exports = {
     fetchLastDaily, 
     updateGoldAndShine,
     updateWishlist,
-    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory,addHalloweenCard,Prefix,addFrame
+    insertAnimeCharacters, AnimeCharacter,updateInventory,addCardToInventory,fetchLastDrop,updateLastDrop,fetchLastGrab,updateLastGrab,consumeItems,updateStellarDust,Frame,addFrameToInventory,applyFrameToCard,fetchAllInventories,addTagToInventory,fetchLastVote,updateDailyBuffs,applyBuffToUser,addAnimeCharacter,editAnimeCharacterImage,getDatabaseSnapshot,deleteInventory,handleInventory,addHalloweenCard,Prefix,addFrame,fetchLastmision
 };

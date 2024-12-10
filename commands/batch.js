@@ -2,6 +2,17 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 
 // Placeholder functions to get series for both batches
 const getUpcomingSeries = async () => [
+    'The Eminence In Shadow',
+    'Honkai Impact 3rd',
+    'Dragon Maid:',
+    'Dungeon Meshi',
+    'Konosuba',
+    'Re:Zero',
+    'Bunny Girl Senpai',
+    'Tokyo Revengers',
+];
+
+const getOldBatchSeries = async () => [
     'Sound Euphonium',
     'Solo Leveling',
     'My Dress-Up Darling',
@@ -12,19 +23,6 @@ const getUpcomingSeries = async () => [
     'Cyberpunk',
     'Wuthering Waves',
     'Love Live!',
-];
-
-const getOldBatchSeries = async () => [
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
 ];
 
 module.exports = {

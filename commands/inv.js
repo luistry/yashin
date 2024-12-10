@@ -18,7 +18,7 @@ module.exports = {
             }
 
             // Destructuring de los campos relevantes del inventario
-            const { shines, gold, stellar_dust, extra_drop, extra_grab, Frames, moons, SpeedOfReaction, GodofEvasion, FastHands, DivinityAbsolute, Glows, Box_title, Box_banner,candy,witch_dust,Halloween_Box_banner,Halloween_frame_box } = inventory;
+            const { shines, gold, stellar_dust, extra_drop, extra_grab, Frames, moons, SpeedOfReaction, GodofEvasion, FastHands, DivinityAbsolute, Glows, Box_title, Box_banner,candy,witch_dust,Halloween_Box_banner,Halloween_frame_box,vanish } = inventory;
 
             // Formatear la información de los frames
             let framesDescription = 'No frames found.';
@@ -40,6 +40,7 @@ module.exports = {
             const stellarDustText = stellar_dust && stellar_dust.length > 0 ? `• Stellar Dust • ${stellar_dust.join(', ')} :dizzy:` : null;
             const extraDropText = extra_drop && extra_drop.length > 0 ? `• Extra Drops • ${extra_drop.join(', ')} :fist:` : null;
             const extraGrabText = extra_grab && extra_grab.length > 0 ? `• Extra Grabs • ${extra_grab.join(', ')} :wave:` : null;
+            const vanishText = vanish && vanish.length > 0 ? `• Vanish Drops • ${vanish.join(', ')} :punch:` : null;
             const DivinityAbsolutetext = DivinityAbsolute && DivinityAbsolute.length > 0 ? `• Divinity Absolute • ${DivinityAbsolute.join(', ')} 🌟` : null;
             const GodofEvasiontext = GodofEvasion && GodofEvasion.length > 0 ? `• God Of Evasion • ${GodofEvasion.join(', ')} :fingers_crossed:` : null;
             const FastHandstext = FastHands && FastHands.length > 0 ? `• Fast Hands • ${FastHands.join(', ')} 🙌` : null;
@@ -57,6 +58,7 @@ module.exports = {
                 stellarDustText,
                 extraDropText,
                 extraGrabText,
+                vanishText,
                 moonstext,
                 DivinityAbsolutetext,
                 GodofEvasiontext,

@@ -1,5 +1,5 @@
 const { EmbedBuilder, Colors } = require('discord.js');
-const { fetchLastDrop, fetchLastDaily, fetchLastGrab, fetchLastVote, fetchInventory } = require('./database/database'); // Adjust the path if necessary
+const { fetchLastDrop, fetchLastDaily, fetchLastGrab, fetchLastVote, fetchInventory,fetchLastmision } = require('./database/database'); // Adjust the path if necessary
 
 // Configure cooldown times in milliseconds
 const COOLDOWNS = {
@@ -7,6 +7,7 @@ const COOLDOWNS = {
     drop: 20 * 60 * 1000, // 20 minutes
     vote: 12 * 60 * 60 * 1000, // 12 hours
     daily: 24 * 60 * 60 * 1000, // 24 hours
+    mision_daily: 24 * 60 * 60 * 1000 // 24 hour
 };
 
 // Format the remaining cooldown time
@@ -49,7 +50,7 @@ async function formatCooldown(cooldownType, lastUsed, userId) {
 }
 
 module.exports = {
-    name: "cooldown",
+    name: "cd",
     description: "Show cooldowns for commands",
     run: async (message) => {
         const userId = message.author.id;
@@ -61,6 +62,7 @@ module.exports = {
             lastDrop = await fetchLastDrop(userId) || 0;
             lastGrab = await fetchLastGrab(userId) || 0;
             lastVote = await fetchLastVote(userId) || 0;
+            lastmision = await fetchLastmision(userId) || 0;
         } catch (err) {
             console.error('Error fetching cooldowns:', err);
             return message.reply('There was an error checking your cooldowns.');
@@ -83,6 +85,10 @@ module.exports = {
             Vote: {
                 lastUsed: lastVote,
                 cooldownType: 'vote'
+            },
+            Mision: {
+                lastUsed: lastmision,
+                cooldownType: 'mision_daily'
             }
         };
 
