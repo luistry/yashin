@@ -202,17 +202,29 @@ function getRandomRarity() {
 // Update character stats
 async function updateCharacterStats(id, rarity) {
     try {
-        const character = await AnimeCharacter.findOne({ _id: id }).exec();
+        // Asegúrate de que id es un número entero (Int32)
+        const characterId = parseInt(id, 10);  // Convierte el id a número entero
+
+        // Verifica que el id sea un número entero
+        if (isNaN(characterId)) {
+            console.error('ID is not a valid integer:', id);
+            return null;
+        }
+
+        // Busca el personaje usando el ID como número entero
+        const character = await AnimeCharacter.findOne({ _id: characterId }).exec();
+        
         if (character) {
             character.generate = (character.generate || 0) + 1;
-            character.__v = (character.__v || 0) + 1;
             character.code = generateRandomCode(Math.floor(Math.random() * 4) + 3);
             character.rarity = rarity;
 
             await character.save();
             return { code: character.code, rarity };
+        } else {
+            console.log('Character not found');
+            return null; // Si no se encuentra el personaje, retorna null
         }
-        return null;
     } catch (error) {
         console.error('Error updating character stats:', error);
         return null;
@@ -510,43 +522,46 @@ module.exports = {
             await msg.react(emojis[i]);
         }
 
-     
+
         const filter = (reaction, reactingUser) => (emojis.includes(reaction.emoji.name) || reaction.emoji.name === '🍬') && !reactingUser.bot;
         const cardGrabbed = new Map();
         const cooldownUsers = new Set();
         const collector = msg.createReactionCollector({ filter, time: 60000 });
-
+        const grabCooldown = await handleGrabCooldown(reactingUser.id);
         collector.on('collect', async (reaction, reactingUser) => {
             const index = emojis.indexOf(reaction.emoji.name);
-
-
             if (index === -1) return;
+        
             const selectedCharacter = updatedCharacters[index];
             if (!selectedCharacter) return;
-
+        
+            // Verificar si la carta ya fue recogida
             if (cardGrabbed.has(selectedCharacter._id)) {
                 await message.channel.send(`${reactingUser}, this card has already been grabbed!`);
                 return;
             }
-
-            if (cooldownUsers.has(reactingUser.id)) {
+        
+            // Verificar si el usuario está en cooldown
+            const grabCooldown = await handleGrabCooldown(reactingUser.id);
+            if (grabCooldown) {
                 const inventory = await fetchInventory(reactingUser.id);
                 const hasExtraGrab = inventory?.extra_grab > 0;
-
+        
                 if (hasExtraGrab) {
                     await consumeItems(reactingUser.id, ['extra_grab']);
                     await message.channel.send(`${reactingUser}, extra grab used!`);
                 } else {
-                    await message.channel.send(`${reactingUser}, you are on cooldown.`);
+                    await message.channel.send(`${reactingUser}, you are on cooldown. Time remaining: ${grabCooldown} seconds.`);
                     return;
                 }
             }
-
+        
+            // Registrar que la carta fue recogida y aplicar cooldown
             cardGrabbed.set(selectedCharacter._id, reactingUser.id);
             cooldownUsers.add(reactingUser.id);
-
-            const default_Frame =  'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
-
+        
+            const default_Frame = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
+        
             await addCardToInventory(reactingUser.id, {
                 ...selectedCharacter,
                 dropped_on: new Date(),
@@ -564,9 +579,10 @@ module.exports = {
                 last_color_letter: "",
                 color_letter: "",
             });
-
-            await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \` #${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+        
+            await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \`#${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
         });
+        
 
         collector.on('end', async collected => {
             if (collected.size === 0) {

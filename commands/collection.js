@@ -92,7 +92,7 @@ module.exports = {
                     const name = card.name || 'Unknown Name';
                     const series = card.series || 'Unknown Series';
                     const rarityInitial = card.rarity ? card.rarity.charAt(0).toUpperCase() : 'Unknown';
-                    const __v = card.scratch ? 'Halloween 2024 🎃' : card.__v || 'Unknown';
+                    const __v = card.scratch ? 'Halloween 2024 🎃' : card.__v;
                     const tagPrefix = card.tagName ? String.fromCodePoint(card.tagName.codePointAt(0)) : '⬛';
 
                     return `${tagPrefix} \`${code}\` • \`${name}\` • \`${series}\` • #${__v} • ${rarityInitial}`;
