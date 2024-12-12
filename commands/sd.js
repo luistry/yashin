@@ -523,49 +523,48 @@ module.exports = {
         }
 
 
-        const filter = (reaction, reactingUser) => (emojis.includes(reaction.emoji.name) || reaction.emoji.name === '🍬') && !reactingUser.bot;
+        const filter = (reaction, user) => (emojis.includes(reaction.emoji.name) || reaction.emoji.name === '🍬') && !user.bot;
         const cardGrabbed = new Map();
         const cooldownUsers = new Set();
         const collector = msg.createReactionCollector({ filter, time: 60000 });
-        const grabCooldown = await handleGrabCooldown(reactingUser.id);
-        collector.on('collect', async (reaction, reactingUser) => {
+        
+        collector.on('collect', async (reaction, user) => {
             const index = emojis.indexOf(reaction.emoji.name);
             if (index === -1) return;
         
             const selectedCharacter = updatedCharacters[index];
             if (!selectedCharacter) return;
         
-            // Verificar si la carta ya fue recogida
-            if (cardGrabbed.has(selectedCharacter._id)) {
-                await message.channel.send(`${reactingUser}, this card has already been grabbed!`);
-                return;
-            }
-        
             // Verificar si el usuario está en cooldown
-            const grabCooldown = await handleGrabCooldown(reactingUser.id);
+            const grabCooldown = await handleGrabCooldown(user.id);
             if (grabCooldown) {
-                const inventory = await fetchInventory(reactingUser.id);
+                const inventory = await fetchInventory(user.id);
                 const hasExtraGrab = inventory?.extra_grab > 0;
         
                 if (hasExtraGrab) {
-                    await consumeItems(reactingUser.id, ['extra_grab']);
-                    await message.channel.send(`${reactingUser}, extra grab used!`);
+                    await consumeItems(user.id, ['extra_grab']);
+                    await message.channel.send(`Cooldown active. Extra grab used! Remaining extra grabs: ${inventory.extra_grab - 1}`);
                 } else {
-                    await message.channel.send(`${reactingUser}, you are on cooldown. Time remaining: ${grabCooldown} seconds.`);
+                    await message.channel.send(`${user}, you are on cooldown. Time remaining: ${grabCooldown} seconds.`);
                     return;
                 }
             }
         
             // Registrar que la carta fue recogida y aplicar cooldown
-            cardGrabbed.set(selectedCharacter._id, reactingUser.id);
-            cooldownUsers.add(reactingUser.id);
+            if (cardGrabbed.has(selectedCharacter._id)) {
+                await message.channel.send(`${user}, this card has already been grabbed!`);
+                return;
+            }
+        
+            cardGrabbed.set(selectedCharacter._id, user.id);
+            cooldownUsers.add(user.id);
         
             const default_Frame = 'https://yashin.nyc3.cdn.digitaloceanspaces.com/frames/Frame_Default_Yashin.png';
         
-            await addCardToInventory(reactingUser.id, {
+            await addCardToInventory(user.id, {
                 ...selectedCharacter,
                 dropped_on: new Date(),
-                grabbed_by: reactingUser.id,
+                grabbed_by: user.id,
                 Dropped_in: message.channel.id,
                 channel_id: message.channel.id,
                 guild_id: message.guild.id,
@@ -580,15 +579,14 @@ module.exports = {
                 color_letter: "",
             });
         
-            await message.channel.send(`${reactingUser}, you grabbed the card \`${selectedCharacter.code}\` · \`#${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
+            await message.channel.send(`${user}, you grabbed the card \`${selectedCharacter.code}\` · \`#${selectedCharacter.__v}\` · ***${selectedCharacter.series}***: ***${selectedCharacter.name}*** · it has ***${selectedCharacter.rarity}*** rarity`);
         });
         
-
         collector.on('end', async collected => {
             if (collected.size === 0) {
                 await msg.edit({ content: `${msg.content}\n\n**The Drop has Expired.**` });
                 await msg.reactions.removeAll();
             }
-        });
+        });        
     },
 };
