@@ -208,7 +208,7 @@ async function updateCharacterStats(id, rarity) {
         const character = await AnimeCharacter.findOne({ _id: characterId }).exec();
         
         if (character) {
-            character.generate = (character.generate || 0) + 1;
+            character.__v = (character.__v || 0) + 1;
             character.code = generateRandomCode(Math.floor(Math.random() * 4) + 3);
             character.rarity = rarity;
 
