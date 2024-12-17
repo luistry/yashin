@@ -14,17 +14,17 @@ module.exports = {
         }
 
         // Create the email content
-        const mailName = 'Halloween Event';
+        const mailName = 'Gift For 500 Players';
         const mailDescription = `
-     🎃👻 ¡Moshi moshi! Yashin Here! 👻🎃
+      ¡Moshi moshi! Yashin Here! 
+We’re thrilled to celebrate a very special milestone: we’ve reached 500 players! 🎊✨  
+Thank you for being part of this amazing community. This achievement wouldn’t be possible without each and every one of you.  
 
-Halloween has officially begun! Get ready for a spooktacular season filled with hauntingly fun events, thrilling surprises, and plenty of treats! 🍬🕷️
+As a token of our appreciation, we’ve prepared a special gift just for you. We hope you enjoy it!  
 
-Join us in celebrating this eerie time of year, and don’t forget to keep an eye out for special Halloween cards and limited-time activities!
-
-Let the ghostly festivities begin! 🦇🕸️
+Let’s keep growing together—this is just the beginning! 🚀💖
           **Your Rewards:**
-            - 10 shines ✨ 
+            - 15 shines ✨ 
         `;
 
         // Fetch all user inventories
